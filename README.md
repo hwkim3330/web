@@ -6,3 +6,80 @@ https://hwkim3330.github.io/web/
 
 
 ![fileView (1)](https://github.com/user-attachments/assets/eaa36443-81b3-41ab-995a-faea06c5f5af)
+물론입니다! 요청하신 대로 KETI 로고가 포함된 프로젝트를 위한 `README.md` 파일을 마크다운 형식으로 작성해 드렸습니다. 프로젝트의 특징을 잘 나타낼 수 있는 뱃지(Badges)도 포함했습니다.
+
+이 내용을 `README.md`라는 이름의 파일로 저장하여 `index.html`과 함께 사용하시면 됩니다.
+
+---
+
+# KETI & NXP S32G - AI 웹 컨트롤 센터 (AI Web Control Center)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/kimhyunwoo/terminal4)
+[![Web Serial API](https://img.shields.io/badge/Web%20Serial%20API-Supported-blue?style=for-the-badge&logo=googlechrome)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API)
+[![made with-HTML, CSS, JS](https://img.shields.io/badge/made%20with-HTML%2C%20CSS%2C%20JS-orange?style=for-the-badge)](https://developer.mozilla.org/)
+[![AI Powered](https://img.shields.io/badge/AI%20Powered-Gemini%20%26%20Mistral-8a63d2?style=for-the-badge)](https://ai.google.dev/)
+
+NXP S32G GoldVIP 보드를 위한 올인원(All-in-One) 웹 기반 컨트롤 센터입니다. 단일 `index.html` 파일로 실행되며, 별도의 설치 없이 웹 브라우저만으로 시리얼 터미널, 원클릭 GUI, AI 기반 명령어 생성 및 파일 업로드 기능을 제공하여 임베디드 시스템 개발 및 테스트 생산성을 극대화합니다.
+
+
+*(위 이미지는 실제 애플리케이션의 예시 스크린샷입니다.)*
+
+---
+
+## ✨ 주요 기능 (Key Features)
+
+*   **🌐 웹 기반 터미널**: `Xterm.js`를 내장하여 설치 없이 브라우저에서 바로 시리얼 포트에 연결하고 상호작용할 수 있습니다.
+*   **🤖 AI 어시스턴트**:
+    *   **명령어 생성**: 자연어(예: "eth0의 TSN 트래픽 보여줘")를 입력하면 Gemini 또는 Mistral AI가 실행 가능한 쉘 명령어를 생성해 줍니다.
+    *   **명령어 설명**: 마지막으로 실행한 명령어의 기능과 옵션을 AI가 알기 쉽게 설명해 줍니다.
+*   **🖱️ 원클릭 명령어 GUI**:
+    *   TSN, 가상화, 컨테이너, 네트워크 등 복잡하고 긴 명령어들을 버튼 클릭 한 번으로 실행할 수 있습니다.
+    *   기본적인 리눅스 명령어(`ls`, `pwd`, `ps`, `dmesg` 등)도 버튼으로 제공하여 빠른 시스템 상태 확인이 가능합니다.
+*   **📝 코드 & 스크립트 실행기**:
+    *   웹 UI에 C 또는 Python 코드를 직접 작성하면, 디바이스에서 즉시 컴파일/실행하고 결과를 터미널에서 확인할 수 있습니다.
+*   **📂 파일 업로드**:
+    *   로컬 PC의 텍스트 파일(스크립트, 설정 파일 등)을 S32G 보드의 특정 경로로 손쉽게 업로드할 수 있습니다.
+*   **🔌 제로 설치 및 높은 이식성**:
+    *   모든 기능이 단일 HTML 파일에 포함되어 있어, 파일을 다운로드하고 브라우저에서 열기만 하면 바로 사용할 수 있습니다.
+
+---
+
+## 🚀 시작하기 (Getting Started)
+
+1.  이 프로젝트의 `index.html` 파일을 다운로드합니다.
+2.  NXP S32G 보드를 PC에 USB 시리얼 케이블로 연결합니다.
+3.  다운로드한 `index.html` 파일을 최신 웹 브라우저(Chrome, Edge 권장)에서 엽니다.
+4.  좌측 상단의 **`🔌 Connect`** 버튼을 클릭하고, 팝업 창에서 S32G 보드에 해당하는 시리얼 포트를 선택한 후 연결합니다.
+5.  (선택 사항) AI 기능을 사용하려면 우측 상단의 **`🔑 API Keys`** 버튼을 눌러 Google Gemini 또는 Mistral API 키를 입력하고 저장합니다. 키는 브라우저의 로컬 스토리지에만 저장됩니다.
+
+---
+
+## 🖥️ 브라우저 요구사항 및 호환성 (Browser Requirements)
+
+이 애플리케이션은 **Web Serial API**를 사용하며, 모든 브라우저에서 기본으로 지원되지는 않습니다.
+
+*   ✅ **권장 브라우저**: **Chrome**, **Edge**, **Opera** (Windows, macOS, Linux, Android)
+*   ⚠️ **Firefox**: 기본적으로 비활성화되어 있습니다. 사용하려면 다음 단계를 따르세요.
+    1.  주소창에 `about:config`를 입력합니다.
+    2.  `dom.webserial.enabled`를 검색합니다.
+    3.  값을 `true`로 변경합니다.
+*   🐧 **Linux 사용자**: 시리얼 포트 접근 시 `permission denied` 오류가 발생할 수 있습니다. 터미널에서 아래 명령어를 실행하여 현재 사용자를 `dialout` 그룹에 추가한 후, 로그아웃했다가 다시 로그인하세요.
+    ```bash
+    sudo usermod -a -G dialout $USER
+    ```
+
+---
+
+## 🛠️ 기술 스택 (Tech Stack)
+
+*   **Frontend**: HTML5, CSS3, Vanilla JavaScript
+*   **Terminal Emulator**: [Xterm.js](https://xtermjs.org/)
+*   **Core API**: [Web Serial API](https://wicg.github.io/serial/)
+*   **AI Integration**: [Google Gemini API](https://ai.google.dev/), [Mistral AI API](https://mistral.ai/)
+
+---
+
+## 📄 라이선스 (License)
+
+이 프로젝트는 [MIT 라이선스](LICENSE)에 따라 배포됩니다.
