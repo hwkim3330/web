@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>KETI & NXP S32G - AI Web Control Center</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<style>
+:root {
+--bg-deep-dark: #1e1e1e; --bg-dark: #252526; --bg-medium: #333; --border-color: #4a4a4a;
+--text-light: #d4d4d4; --text-medium: #cccccc; --nxp-blue: #0e639c; --nxp-blue-hover: #1579b9;
+--ai-purple: #8a63d2; --ai-purple-hover: #9b78e3; --keti-blue: #004b8d;
+--color-green: #38a169; --color-yellow: #d19a66; --color-red: #e06c75;
+}
+html, body {
+height: 100%; margin: 0; padding: 0; background-color: var(--bg-deep-dark); color: var(--text-light);
+font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif; overflow: hidden;
+}
+#page-container { display: flex; height: 100%; }
+#terminal-pane { flex: 1.2; display: flex; flex-direction: column; min-width: 0; }
+#gui-pane { flex: 1; background-color: var(--bg-dark); border-left: 1px solid var(--border-color); overflow-y: auto; padding-bottom: 20px; }
+.pane-header {
+padding: 12px 20px; background-color: var(--keti-blue); flex-shrink: 0;
+border-bottom: 1px solid var(--border-color); font-size: 16px; font-weight: 600;
+display: flex; align-items: center; justify-content: space-between; color: white;
+}
+.pane-header .logo { height: 24px; margin-right: 12px; }
+#terminal-container { flex-grow: 1; padding: 0 10px 10px 10px; overflow: hidden; }
+.gui-section { margin: 15px; padding: 15px; background-color: var(--bg-deep-dark); border: 1px solid var(--border-color); border-radius: 6px; }
+.gui-section h3 { margin-top: 0; color: #569cd6; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+button, select, input {
+background-color: var(--nxp-blue); color: white; border: none; padding: 10px;
+font-size: 14px; cursor: pointer; border-radius: 4px; transition: all 0.2s;
+box-sizing: border-box; width: 100%; text-align: left; display: flex; align-items: center; gap: 8px;
+}
+button:hover:not(:disabled) { background-color: var(--nxp-blue-hover); transform: translateY(-1px); }
+button:disabled, input:disabled, select:disabled { background-color: #555; color: #999; cursor: not-allowed; transform: none; }
+.input-group { display: flex; gap: 10px; margin-top: 12px; }
+.input-group input, .input-group select { flex-grow: 1; background-color: #3c3c3c; border: 1px solid #555; padding: 10px; }
+.input-group button { flex-shrink: 0; width: auto; justify-content: center; }
+#controls { display: flex; align-items: center; padding: 10px 20px; background-color: var(--bg-medium); flex-wrap: wrap; gap: 10px; }
+.modal {
+display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+overflow: auto; background-color: rgba(0,0,0,0.6); justify-content: center; align-items: center;
+}
+.modal-content {
+background-color: var(--bg-dark); margin: auto; padding: 25px; border: 1px solid var(--border-color);
+border-radius: 8px; width: 90%; max-width: 600px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+.modal-content h2 { margin-top: 0; color: #569cd6; }
+.modal-content label { display: block; margin: 15px 0 5px 0; color: var(--text-medium); }
+.modal-content input[type="text"], .modal-content input[type="password"], .modal-content textarea {
+width: 100%; padding: 10px; background-color: #3c3c3c; border: 1px solid #555;
+color: var(--text-light); border-radius: 4px; box-sizing: border-box;
+}
+.modal-content textarea { height: 250px; font-family: 'Courier New', Courier, monospace; font-size: 14px; }
+.modal-footer { margin-top: 20px; text-align: right; }
+.modal-footer button { width: auto; display: inline-flex; }
+#ai-prompt { background-color: #3c3c3c; border: 1px solid #555; }
+.ai-btn { background-color: var(--ai-purple); }
+.ai-btn:hover:not(:disabled) { background-color: var(--ai-purple-hover); }
+</style>
+</head>
+<body>
+  <div id="page-container">
+    <div id="terminal-pane">
+        <div id="controls">
+            <button id="connectBtn" style="width:auto;">🔌 Connect</button>
+            <button id="disconnectBtn" style="width:auto;" disabled>❌ Disconnect</button>
+            <select id="baudRateSelect" style="width:auto;">
+                <option value="115200" selected>115200</option><option value="57600">57600</option><option value="9600">9600</option>
+            </select>
+            <button id="apiKeyBtn" style="width:auto; margin-left: auto;">🔑 AI Keys</button>
+        </div>
+        <div id="terminal-container"></div>
+    </div>
+    <div id="gui-pane">
+        <div class="pane-header">
+            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMzIiPjxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0zMS45IDE1LjVINzB2MS45SDMxLjl6TTI1LjYgMS45aC0xLjl2MjguMmgyNnYtMS45SDI1LjZ6TTEyLjggMzAuMWgtMS45VjEuOWgxMS4ybDQuMSAyLjJWOC43aC0xLjlsLTMuNC0xLjctOC45LS4xLS4xIDIxLjl6TTguOSA4LjdoMS45VjEuOWgtNC4zbC0uOCA2Ljh6bS0uNyAyMS40aDEuOVYxMC42aC0xLjguOXoiLz48cGF0aCBmaWxsPSIjRkZGRkZGIiBkPSJNNDkuMyAxMy41aDEuOVY4LjdoLTQuM2wtLjggNC44ek00Mi45IDYuOGwxLjIgMS45aC0xLjlsLTEuNS0xLjktMi41LS4xdi0xOWgtMS45djI4LjJoMjZ2LTEuOUg0MS44di0xNC42bDIuMy0yLjIgNS45LS4xaDEuOVYxOWgtMS45di0zLjZoLTUuNnoiLz48cGF0aCBmaWxsPSIjRkZGRkZGIiBkPSJNNzkgMTkuMWwxLjIgMS45aC0xLjlsLTEuNS0xLjktMi41LS4xdi0xOWgtMS45djI4LjJoMjZ2LTEuOUg3Ny44di0xNC42bDIuMy0yLjIgNS45LS4xaDEuOVYxOUg4NnYtMy42aC01LjZ6Ii8+PHBhdGggZmlsbD0iI0ZGRkZGRiIgZD0iTTk3LjMgOC43aDEuOVYxLjloLTQuM2wtLjggNi44em0tLjcgMjEuNGgxLjlWOS43aC0xLjl2MjAuNHpNOTAuOSAxMy41aDEuOVY4LjdoLTQuM2wtLjggNC44eiIvPjxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0xMjAuMSA4LjdoMS45VjEuOWgtNC4zbC0uOCA2Ljh6bS0uNyAyMS40aDEuOVY5LjdoLTEuOXYyMC40em0tNi40LTcuNmwxLjIgMS45aC0xLjlsLTEuNS0xLjktMi41LS4xdi0xOWgtMS45djI4LjJoMjZ2LTEuOUgxMTJ2LTE0LjZsMi4zLTIuMiA1LjktLjFoMS45VjE5aC0xLjl2LTMuNmgtNS42eiIvPjwvc3ZnPg==" class="logo" alt="KETI Logo">
+            <span>NXP GoldVIP Control Panel</span>
+        </div>
+        
+        <div class="gui-section">
+            <h3>✨ AI Assistant</h3>
+            <div class="input-group">
+                <input type="text" id="ai-prompt" placeholder="e.g., 'Show TSN traffic on eth0'">
+            </div>
+            <div class="button-grid" style="margin-top: 12px;">
+                <button id="aiGenerateBtn" class="ai-btn">🤖 Generate Command</button>
+                <button id="aiExplainBtn" class="ai-btn">💡 Explain Last Command</button>
+            </div>
+        </div>
+
+        <div class="gui-section">
+            <h3>📂 File & Directory</h3>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ls -lha">List Files (ls -lha)</button>
+                <button class="cmd-btn" data-cmd="pwd">Current Directory (pwd)</button>
+                <button id="uploadFileModalBtn">⬆️ Upload File to Device</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="filePathInput" placeholder="/tmp/ or a filename">
+                <button id="catFileBtn">📄 View File</button>
+                <button id="cdAndLsBtn">➡️ Go & List</button>
+            </div>
+        </div>
+        
+        <div class="gui-section">
+            <h3>📝 Code & Script Runner</h3>
+            <div class="button-grid">
+                <button id="cCodeBtn">▶️ Run C Code</button>
+                <button id="pythonCodeBtn">▶️ Run Python Script</button>
+            </div>
+        </div>
+
+        <div class="gui-section">
+            <h3>🩺 Processes & Logs</h3>
+             <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ps aux">Process List (ps)</button>
+                <button class="cmd-btn" data-cmd="top -b -n 1">Top Processes</button>
+                <button class="cmd-btn" data-cmd="dmesg | tail -n 50">Kernel Log (dmesg)</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="pidInput" placeholder="Enter PID to kill">
+                <button id="killBtn" style="background-color: var(--color-yellow);">Kill Process</button>
+            </div>
+        </div>
+        
+        <div class="gui-section">
+            <h3>⏰ Time-Sensitive Networking (TSN)</h3>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="tsntool status">TSNTool Status</button>
+                <button class="cmd-btn" data-cmd="ethtool -T eth0">PTP Caps (eth0)</button>
+                <button class="cmd-btn" data-cmd="systemctl status ptp4l">PTP4L Service Status</button>
+                <button class="cmd-btn" data-cmd="systemctl status phc2sys">PHC2SYS Service Status</button>
+            </div>
+        </div>
+
+        <div class="gui-section">
+            <h3>⚙️ Automotive & Edge Services</h3>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="systemctl status greengrass.service">AWS Greengrass</button>
+                <button class="cmd-btn" data-cmd="systemctl status k3s.service">Kubernetes (K3s)</button>
+                <button class="cmd-btn" data-cmd="systemctl status idps.service">IDPS Service</button>
+                <button class="cmd-btn" data-cmd="systemctl status ota-client.service">OTA Client</button>
+            </div>
+        </div>
+
+        <div class="gui-section">
+            <h3>📦 Virtualization & Containers</h3>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="virsh list --all">List VMs (virsh)</button>
+                <button class="cmd-btn" data-cmd="docker ps -a">List Containers</button>
+            </div>
+        </div>
+
+        <div class="gui-section">
+            <h3>📡 Networking & CAN Bus</h3>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ip -c a">IP Addresses</button>
+                <button class="cmd-btn" data-cmd="ip -s link show can0">CAN0 Stats</button>
+                <button class="cmd-btn" data-cmd="ip -s link show can1">CAN1 Stats</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="pingInput" placeholder="e.g., 8.8.8.8 or nxp.com">
+                <button id="pingBtn">Ping</button>
+            </div>
+        </div>
+
+        <div class="gui-section">
+            <h3>ℹ️ System Information</h3>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="uname -a">Kernel & OS</button>
+                <button class="cmd-btn" data-cmd="lscpu | grep 'Model name'">CPU Model</button>
+                <button class="cmd-btn" data-cmd="free -h">Memory Usage</button>
+                <button class="cmd-btn" data-cmd="df -h">Disk Usage</button>
+            </div>
+        </div>
+
+        <div class="gui-section">
+            <h3>🚨 System Control</h3>
+            <div class="button-grid">
+                <button id="rebootBtn" style="background-color: var(--color-yellow);">Reboot</button>
+                <button id="poweroffBtn" style="background-color: var(--color-red);">Power Off</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<div id="apiKeyModal" class="modal">
+    <div class="modal-content">
+        <h2>AI Provider API Keys</h2>
+        <p style="font-size:14px; color: var(--text-medium);">Enter your API keys. They will be stored locally in your browser and not sent anywhere else.</p>
+        <label for="geminiApiKey">Google Gemini API Key:</label>
+        <input type="password" id="geminiApiKey" placeholder="Enter Gemini Key">
+        <label for="mistralApiKey">Mistral API Key:</label>
+        <input type="password" id="mistralApiKey" placeholder="Enter Mistral Key">
+        <div class="modal-footer">
+            <button id="saveApiKeysBtn" style="background-color: var(--color-green);">Save</button>
+            <button class="close-modal-btn">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="cCodeModal" class="modal">
+    <div class="modal-content">
+        <h2>Run C Code on Device</h2>
+        <textarea id="cCodeInput" placeholder="#include <stdio.h>
+int main() {
+    printf("Hello from C code on S32G!\\n");
+    return 0;
+}"></textarea>
+        <div class="modal-footer">
+            <button id="runCBtn" style="background-color: var(--color-green);">Compile & Run</button>
+            <button class="close-modal-btn">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="pythonCodeModal" class="modal">
+    <div class="modal-content">
+        <h2>Run Python Script on Device</h2>
+        <textarea id="pythonCodeInput" placeholder="import os
+print(f'Hello from Python on S32G!')
+print(f'Current directory: {os.getcwd()}')"></textarea>
+        <div class="modal-footer">
+            <button id="runPythonBtn" style="background-color: var(--color-green);">Run Script</button>
+            <button class="close-modal-btn">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="fileUploadModal" class="modal">
+    <div class="modal-content">
+        <h2>Upload File to Device</h2>
+        <p style="font-size:14px; color: var(--text-medium);">Select a file from your computer and specify the destination path on the S32G device.</p>
+        <label for="fileInput">Local File:</label>
+        <input type="file" id="fileInput" style="background-color: #3c3c3c; border: 1px solid #555; padding: 10px;">
+        <label for="devicePathInput">Destination Path on Device (e.g., /tmp/myfile.txt):</label>
+        <input type="text" id="devicePathInput" placeholder="/tmp/uploaded_file.txt">
+        <div class="modal-footer">
+            <button id="uploadFileBtn" style="background-color: var(--color-green);">Upload</button>
+            <button class="close-modal-btn">Cancel</button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- Web Serial API Compatibility Check ---
+        if (!navigator.serial) {
+            const terminalContainer = document.getElementById('terminal-container');
+            terminalContainer.innerHTML = `
+                <div style="padding: 20px; color: #ffcc00; font-size: 16px;">
+                    <h2>⚠️ Web Serial API Not Supported</h2>
+                    <p>Your browser does not support the Web Serial API, or it is not enabled.</p>
+                    <p>
+                        - <b>Chrome, Edge, Opera:</b> Should work on Windows, macOS, Linux, and Android.
+                        <br>
+                        - <b>Linux Users:</b> You may need to add your user to the 'dialout' or 'uucp' group (e.g., <code>sudo usermod -a -G dialout $USER</code>) and then log out/in.
+                    </p>
+                    <p>
+                        - <b>Firefox:</b> You must manually enable this feature. 
+                        Go to <code>about:config</code>, search for <code>dom.webserial.enabled</code> and set it to <code>true</code>.
+                    </p>
+                </div>`;
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('gui-pane').style.display = 'none';
+            return;
+        }
+
+        const connectBtn = document.getElementById('connectBtn'), disconnectBtn = document.getElementById('disconnectBtn');
+        const baudRateSelect = document.getElementById('baudRateSelect'), terminalContainer = document.getElementById('terminal-container');
+        const guiPane = document.getElementById('gui-pane'), guiControls = guiPane.querySelectorAll('button, input, select');
+        
+        const fitAddon = new FitAddon.FitAddon();
+        const term = new Terminal({
+            cursorBlink: true, fontFamily: 'Consolas, "Courier New", monospace', fontSize: 14,
+            theme: { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#d4d4d4', selectionBackground: '#555' }
+        });
+        term.loadAddon(fitAddon); term.open(terminalContainer); fitAddon.fit();
+        new ResizeObserver(() => fitAddon.fit()).observe(terminalContainer);
+        let port, reader, writer, isReading = false, onDataDisposable;
+        let lastCommand = '';
+        const encoder = new TextEncoder();
+        
+        const setGuiEnabled = (enabled) => {
+            guiControls.forEach(c => c.disabled = !enabled);
+            document.getElementById('apiKeyBtn').disabled = false;
+            const geminiKey = localStorage.getItem('geminiApiKey');
+            const mistralKey = localStorage.getItem('mistralApiKey');
+            if (!enabled || (!geminiKey && !mistralKey)) {
+                document.getElementById('aiGenerateBtn').disabled = true;
+                document.getElementById('aiExplainBtn').disabled = true;
+            }
+        };
+        setGuiEnabled(false);
+
+        async function sendSerial(data) {
+            if (!port?.writable) return;
+            try {
+                writer = port.writable.getWriter();
+                await writer.write(encoder.encode(data));
+            } catch(e) {
+                term.writeln(`\r\n\x1b[31m[ERROR] Write failed: ${e.message}\x1b[0m`);
+            } finally {
+                if (writer) writer.releaseLock();
+            }
+        }
+        const sendCommand = async (cmd) => {
+            if (port && cmd) {
+                term.focus();
+                await sendSerial(cmd + '\r');
+                lastCommand = cmd;
+            }
+        };
+        
+        async function connect() {
+            if (port) return;
+            try {
+                // To auto-select a specific device, uncomment and modify the filter.
+                // Find vendorId and productId using 'lsusb' on Linux.
+                // const filters = [ { usbVendorId: 0x1fc9, usbProductId: 0x0147 } ]; // Example for NXP
+                // port = await navigator.serial.requestPort({ filters });
+                port = await navigator.serial.requestPort(); // Prompts user to select a port
+                
+                await port.open({ baudRate: parseInt(baudRateSelect.value, 10) });
+                connectBtn.disabled = true; disconnectBtn.disabled = false; setGuiEnabled(true);
+                isReading = true;
+                readLoop();
+                term.writeln('\x1b[32m[SYSTEM] KETI-NXP S32G Connected\x1b[0m');
+                term.focus();
+                onDataDisposable = term.onData(data => sendSerial(data));
+            } catch (error) { term.writeln(`\r\n\x1b[31m[ERROR] ${error.message}\x1b[0m`); }
+        }
+        async function disconnect() {
+            if (!port) return;
+            isReading = false;
+            if(onDataDisposable) onDataDisposable.dispose();
+            if (reader) { try { await reader.cancel(); } catch(e) {} }
+            if (port.writable) {
+                try {
+                    const localWriter = port.writable.getWriter();
+                    await localWriter.close();
+                } catch(e) {}
+            }
+            try { await port.close(); } catch(e) {}
+            port = null;
+            connectBtn.disabled = false; disconnectBtn.disabled = true; setGuiEnabled(false);
+            term.writeln('\r\n\x1b[33m[SYSTEM] Disconnected\x1b[0m');
+        }
+        async function readLoop() {
+            const textDecoder = new TextDecoderStream();
+            const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+            reader = textDecoder.readable.getReader();
+            try {
+                while (isReading) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    term.write(value);
+                }
+            } catch (error) {
+                if (isReading && error.name !== 'AbortError') {
+                    term.writeln(`\r\n\x1b[31m[ERROR] Read loop failed: ${error.message}\x1b[0m`);
+                }
+            } finally {
+                reader.releaseLock();
+                await readableStreamClosed.catch(() => {});
+                if (isReading) await disconnect();
+            }
+        }
+        
+        // --- Modal Handling ---
+        const showModal = (modalId) => document.getElementById(modalId).style.display = 'flex';
+        const hideModal = (modalId) => document.getElementById(modalId).style.display = 'none';
+        document.querySelectorAll('.close-modal-btn').forEach(btn => {
+            btn.addEventListener('click', () => btn.closest('.modal').style.display = 'none');
+        });
+        
+        // API Key Modal
+        document.getElementById('apiKeyBtn').addEventListener('click', () => {
+            document.getElementById('geminiApiKey').value = localStorage.getItem('geminiApiKey') || '';
+            document.getElementById('mistralApiKey').value = localStorage.getItem('mistralApiKey') || '';
+            showModal('apiKeyModal');
+        });
+        document.getElementById('saveApiKeysBtn').addEventListener('click', () => {
+            localStorage.setItem('geminiApiKey', document.getElementById('geminiApiKey').value.trim());
+            localStorage.setItem('mistralApiKey', document.getElementById('mistralApiKey').value.trim());
+            hideModal('apiKeyModal');
+            setGuiEnabled(port?.readable);
+            term.writeln('\r\n\x1b[32m[SYSTEM] API Keys saved locally.\x1b[0m');
+        });
+
+        // Code Runner Modals
+        document.getElementById('cCodeBtn').addEventListener('click', () => showModal('cCodeModal'));
+        document.getElementById('pythonCodeBtn').addEventListener('click', () => showModal('pythonCodeModal'));
+        document.getElementById('runCBtn').addEventListener('click', () => {
+            const code = document.getElementById('cCodeInput').value;
+            const escapedCode = code.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+            const cmd = `cat <<'EOF' > /tmp/webrun.c\n${escapedCode}\nEOF\ngcc /tmp/webrun.c -o /tmp/webrun && /tmp/webrun && rm /tmp/webrun /tmp/webrun.c`;
+            sendCommand(cmd);
+            hideModal('cCodeModal');
+        });
+        document.getElementById('runPythonBtn').addEventListener('click', () => {
+            const code = document.getElementById('pythonCodeInput').value;
+            const escapedCode = code.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+            const cmd = `python3 -c '${escapedCode}'`;
+            sendCommand(cmd);
+            hideModal('pythonCodeModal');
+        });
+
+        // File Upload Modal
+        document.getElementById('uploadFileModalBtn').addEventListener('click', () => showModal('fileUploadModal'));
+        document.getElementById('uploadFileBtn').addEventListener('click', () => {
+            const fileInput = document.getElementById('fileInput');
+            const devicePath = document.getElementById('devicePathInput').value.trim();
+            if (!fileInput.files[0] || !devicePath) {
+                term.writeln('\r\n\x1b[31m[ERROR] Please select a file and specify a destination path.\x1b[0m');
+                return;
+            }
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                const escapedContent = content.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+                const cmd = `cat <<'EOF' > ${devicePath}\n${escapedContent}\nEOF`;
+                term.writeln(`\r\n\x1b[33m[SYSTEM] Uploading ${file.name} to ${devicePath}...\x1b[0m`);
+                sendCommand(cmd);
+                hideModal('fileUploadModal');
+            };
+            reader.onerror = () => term.writeln(`\r\n\x1b[31m[ERROR] Failed to read file: ${reader.error}\x1b[0m`);
+            reader.readAsText(file);
+        });
+
+        // --- AI Functionality ---
+        async function callAI(prompt) {
+            const geminiKey = localStorage.getItem('geminiApiKey');
+            const mistralKey = localStorage.getItem('mistralApiKey');
+            let provider = null, url = '', options = {};
+            if (geminiKey) {
+                provider = 'Gemini';
+                url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiKey}`;
+                options = { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ "contents": [{ "parts": [{ "text": prompt }] }] }) };
+            } else if (mistralKey) {
+                provider = 'Mistral';
+                url = 'https://api.mistral.ai/v1/chat/completions';
+                options = { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${mistralKey}`}, body: JSON.stringify({ model: "mistral-tiny", messages: [{"role": "user", "content": prompt}]}) };
+            } else {
+                term.writeln('\r\n\x1b[31m[AI ERROR] No API Key found. Please set one in the API Keys menu.\x1b[0m');
+                return null;
+            }
+            term.writeln(`\r\n\x1b[35m[AI] Asking ${provider}...\x1b[0m`);
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) { const errorData = await response.json(); throw new Error(`${response.status}: ${errorData.error?.message || response.statusText}`); }
+                const data = await response.json();
+                if (provider === 'Gemini') return data.candidates[0].content.parts[0].text;
+                if (provider === 'Mistral') return data.choices[0].message.content;
+            } catch (error) { term.writeln(`\r\n\x1b[31m[AI ERROR] ${error.message}\x1b[0m`); return null; }
+        }
+        document.getElementById('aiGenerateBtn').addEventListener('click', async () => {
+            const promptText = document.getElementById('ai-prompt').value.trim();
+            if (!promptText) return;
+            const fullPrompt = `You are an expert on Linux for NXP S32G embedded systems. Generate a single, executable shell command to accomplish the following task: "${promptText}". Provide only the raw command and nothing else, no explanations, no backticks.`;
+            const result = await callAI(fullPrompt);
+            if (result) {
+                const command = result.replace(/`/g, '').trim();
+                term.writeln(`\r\n\x1b[32m[AI Suggestion] ${command}\x1b[0m`);
+                if (confirm(`Execute the following command?\n\n${command}`)) { sendCommand(command); }
+            }
+        });
+        document.getElementById('aiExplainBtn').addEventListener('click', async () => {
+            if (!lastCommand) { term.writeln('\r\n\x1b[33m[AI] No command has been executed yet.\x1b[0m'); return; }
+            const fullPrompt = `You are an expert on Linux for NXP S32G embedded systems. Explain what the following shell command does in a few simple sentences: "${lastCommand}".`;
+            const result = await callAI(fullPrompt);
+            if (result) { term.writeln(`\r\n\x1b[36m[AI Explanation for: ${lastCommand}]\r\n${result.replace(/\n/g, '\r\n')}\x1b[0m`); }
+        });
+        
+        // --- Button Event Listeners ---
+        document.querySelectorAll('.cmd-btn').forEach(b => b.addEventListener('click', () => sendCommand(b.dataset.cmd)));
+        
+        document.getElementById('pingBtn').addEventListener('click', () => {
+            const host = document.getElementById('pingInput').value.trim();
+            if (host) sendCommand(`ping -c 4 ${host}`);
+        });
+        document.getElementById('killBtn').addEventListener('click', () => {
+            const pid = document.getElementById('pidInput').value.trim();
+            if (pid && confirm(`Are you sure you want to kill PID: ${pid}?`)) sendCommand(`kill -9 ${pid}`);
+        });
+        document.getElementById('rebootBtn').addEventListener('click', () => { if (confirm('DANGER: REBOOT the device?')) sendCommand('reboot'); });
+        document.getElementById('poweroffBtn').addEventListener('click', () => { if (confirm('DANGER: POWER OFF the device?')) sendCommand('poweroff'); });
+        
+        // File & Directory Listeners
+        document.getElementById('catFileBtn').addEventListener('click', () => {
+            const path = document.getElementById('filePathInput').value.trim();
+            if (path) sendCommand(`cat ${path}`);
+        });
+        document.getElementById('cdAndLsBtn').addEventListener('click', () => {
+            const path = document.getElementById('filePathInput').value.trim();
+            if (path) sendCommand(`cd ${path} && ls -lha`);
+        });
+
+        // Main Connection Listeners
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        navigator.serial?.addEventListener('disconnect', (e) => { if (e.target === port) disconnect(); });
+    });
+</script>
+</body>
+</html>
