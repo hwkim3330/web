@@ -2,7 +2,7 @@
 <html lang="ko" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <title>V-DRIVE Web Console</title>
+    <title>V-DRIVE Web Console (Final Build)</title>
     <!-- 외부 라이브러리는 안정적인 CDN으로 로드 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <script src="https://cdn.jsdelivr.net/npm/cbor-x@1.5.8/dist/index.min.js" defer></script>
@@ -11,11 +11,12 @@
         :root { --font-family: -apple-system, system-ui, sans-serif; }
         body { padding: 1.5rem; max-width: 1200px; margin: auto; }
         pre { min-height: 40vh; max-height: 60vh; font-size: 0.85em; white-space: pre-wrap; word-break: break-all; }
-        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; align-items: end; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; align-items: end; }
         .hidden { display: none !important; }
         #status-text { margin-top: 0.5rem; }
         #btn-connect.secondary { background-color: var(--pico-color-red-550); border-color: var(--pico-color-red-550); }
         #btn-connect.secondary:hover { background-color: var(--pico-color-red-600); }
+        details { margin-bottom: 1rem; }
     </style>
 </head>
 <body>
@@ -23,12 +24,12 @@
         <header>
             <hgroup>
                 <h1>V-DRIVE Web Console</h1>
-                <h2>Auto-loading, single-file edition for GitHub Pages.</h2>
+                <h2>The Ultimate "It Just Works" Edition.</h2>
             </hgroup>
         </header>
 
         <article>
-            <div class="grid">
+            <div class="grid" style="grid-template-columns: 1fr 2fr;">
                 <div>
                     <button id="btn-connect" aria-busy="true">Loading Dictionary...</button>
                     <small id="status-text"></small>
@@ -36,10 +37,9 @@
             </div>
         </article>
 
-        <!-- 명령어 UI는 연결 성공 후 나타남 -->
         <section id="command-area" class="hidden">
             <form id="command-form">
-                <details open>
+                <details>
                     <summary><strong>Interface Commands</strong></summary>
                     <button type="button" class="cmd-btn" data-method="fetch" data-path="/ietf-interfaces:interfaces/interface" data-payload="[null]">Get All Interfaces</button>
                     <footer>
@@ -48,6 +48,26 @@
                         <button type="button" id="btn-patch-if">Set Port State</button>
                     </footer>
                 </details>
+
+                <details open>
+                    <summary><strong>PTP Commands</strong></summary>
+                    <div class="grid-3">
+                        <label>Instance Index
+                            <input type="number" id="ptp-instance-idx" value="0">
+                        </label>
+                        <label>Port Index
+                            <input type="number" id="ptp-port-idx" value="12">
+                        </label>
+                         <label>Servo Index
+                            <input type="number" id="ptp-servo-idx" value="0">
+                        </label>
+                    </div>
+                    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <button type="button" id="btn-set-ptp">Set PTP Instance (iPatch)</button>
+                        <button type="button" id="btn-fetch-ptp" class="secondary">Fetch PTP Instance Status</button>
+                    </div>
+                </details>
+
                  <details>
                     <summary><strong>System Commands</strong></summary>
                     <button type="button" class="cmd-btn" data-method="post" data-path="/mchp-velocitysp-system:save-config" data-payload="null">Save Running Config</button>
@@ -84,11 +104,12 @@ const SID_FILES = [
     "mchp-velocitysp-ptp@2025-06-25.sid", "mchp-velocitysp-redbox@2025-06-30.sid",
     "mchp-velocitysp-system@2025-06-30.sid"
 ];
+
+// --- 2. 전역 변수 및 초기화 ---
 const YANG_CATALOG_PATH = './yang-catalog/';
 let YANG_DICTIONARY = {};
 let port, writer, reader;
 
-// --- 2. 백그라운드 자동 로딩 및 파싱 ---
 (async function initialize() {
     log('Initializing Console...');
     try {
@@ -107,7 +128,10 @@ let port, writer, reader;
         log(`✅ Console is ready. ${Object.keys(YANG_DICTIONARY).length} SIDs loaded.`);
     } catch (err) {
         log(`❌ Initialization failed: ${err.message}`);
-        document.getElementById('status-text').textContent = 'Initialization Failed!';
+        const connectBtn = document.getElementById('btn-connect');
+        connectBtn.ariaBusy = false;
+        connectBtn.textContent = 'Init Failed';
+        document.getElementById('status-text').textContent = 'Could not load dictionary files.';
         document.getElementById('status-text').style.color = 'salmon';
     }
 })();
@@ -124,44 +148,78 @@ function parseSidContent(content) {
     });
 }
 
-// --- 3. 핵심 로직: CORECONF 페이로드 생성 ---
+// --- 3. 핵심 로직: 정교한 재귀적 CBOR 인코더 ---
+function jsToCborMap(jsObject) {
+    if (typeof jsObject !== 'object' || jsObject === null) {
+        return jsObject;
+    }
+
+    if (Array.isArray(jsObject)) {
+        return jsObject.map(item => jsToCborMap(item));
+    }
+
+    const cborMap = new Map();
+    for (const key in jsObject) {
+        const sid = YANG_DICTIONARY[key.split(':').pop()]; // 네임스페이스 제거 (e.g., mchp-velocitysp-ptp:servos -> servos)
+        if (sid === undefined) throw new Error(`SID for key '${key}' not in dictionary.`);
+        
+        cborMap.set(sid, jsToCborMap(jsObject[key]));
+    }
+    return cborMap;
+}
+
 function createCoreconfPayload(path, payloadData) {
     if (Object.keys(YANG_DICTIONARY).length === 0) throw new Error("Dictionary not ready.");
-    
-    // 경로에서 모듈 이름과 각 세그먼트를 분리
-    const [moduleName, ...pathSegments] = path.replace(/^\//, '').split(/\/|:/);
-    
-    let currentPayload;
 
-    // 페이로드 데이터 타입에 따라 CBOR 맵 생성
-    if (payloadData === null) {
-        currentPayload = null; // fetch/post용
-    } else if (Array.isArray(payloadData)) {
-         currentPayload = payloadData.map(item => { // ipatch용
-            const cborMap = new Map();
-            for (const key in item) {
-                const sid = YANG_DICTIONARY[key];
-                if (sid === undefined) throw new Error(`SID for key '${key}' not in dictionary.`);
-                cborMap.set(sid, item[key]);
-            }
-            return cborMap;
-        });
+    let currentPayload;
+    // 페이로드 데이터를 재귀적으로 CBOR 맵/배열로 변환
+    if (payloadData === null || (Array.isArray(payloadData) && payloadData[0] === null)) {
+        currentPayload = null; // fetch/post 용
     } else {
-        throw new Error("Unsupported payload data type");
+        currentPayload = jsToCborMap(payloadData);
     }
+    
+    // 경로 파싱 (키 필터링 포함)
+    // 예: /module:container/list[key='value']/leaf
+    const predicates = {};
+    path = path.replace(/\[(.*?)\]/g, (match, content) => {
+        const [key, value] = content.split("=");
+        const cleanValue = value.replace(/'/g, "");
+        // 경로의 마지막 세그먼트에 필터 정보 추가
+        const pathSegments = path.substring(0, match.index).split('/');
+        const lastSegment = pathSegments.pop();
+        predicates[lastSegment] = {[key]: cleanValue};
+        return ''; // 경로에서 필터 부분 제거
+    });
+
+    const pathSegments = path.replace(/^\//, '').split(/\/|:/);
 
     // 경로를 SID 태그로 감싸기 (거꾸로)
     for (let i = pathSegments.length - 1; i >= 0; i--) {
-        const sid = YANG_DICTIONARY[pathSegments[i]];
-        if (sid === undefined) throw new Error(`SID for path '${pathSegments[i]}' not in dictionary.`);
+        const segment = pathSegments[i];
+        if (!segment) continue;
+
+        const sid = YANG_DICTIONARY[segment];
+        if (sid === undefined) throw new Error(`SID for path segment '${segment}' not in dictionary.`);
+        
+        // 필터가 이 세그먼트에 해당되면, 페이로드를 필터 객체와 병합
+        if (predicates[segment]) {
+            if (!Array.isArray(currentPayload)) currentPayload = [currentPayload];
+            const keyToFilter = Object.keys(predicates[segment])[0];
+            const valueToFilter = predicates[segment][keyToFilter];
+
+            const foundItem = currentPayload.find(item => {
+                 const keySid = YANG_DICTIONARY[keyToFilter];
+                 return item.get(keySid) == valueToFilter;
+            });
+             if(foundItem) {
+                currentPayload = foundItem;
+             }
+        }
+        
         currentPayload = new CBOR.CborTag(sid, currentPayload);
     }
     
-    // 최종 모듈 태그로 감싸기
-    const moduleSid = YANG_DICTIONARY[moduleName];
-    if (moduleSid === undefined) throw new Error(`SID for module '${moduleName}' not in dictionary.`);
-    currentPayload = new CBOR.CborTag(moduleSid, currentPayload);
-
     return CBOR.encode(currentPayload);
 }
 
@@ -169,7 +227,7 @@ function createCoreconfPayload(path, payloadData) {
 async function sendMup1Command(method, path, payloadData) {
     if (!writer) return;
     try {
-        const commandChar = method.charAt(0); // fetch -> f, ipatch -> p
+        const commandChar = method.charAt(0);
         log(`[TX] Method: ${method}, Path: ${path}`);
         const cborPayload = createCoreconfPayload(path, payloadData);
         
@@ -209,10 +267,9 @@ async function connect() {
 }
 
 async function disconnect() {
-    if (reader) await reader.cancel().catch(() => {});
-    if (writer) await writer.close().catch(() => {});
-    if (port) await port.close().catch(() => {});
-    port = writer = reader = undefined;
+    if (reader) { await reader.cancel().catch(() => {}); reader = null; }
+    if (writer) { await writer.close().catch(() => {}); writer = null; }
+    if (port) { await port.close().catch(() => {}); port = null; }
     
     document.getElementById('status-text').textContent = '';
     document.getElementById('btn-connect').textContent = 'Connect to Device';
@@ -226,7 +283,7 @@ async function listenForData() {
         try {
             const { value, done } = await reader.read();
             if (done) break;
-            const textResponse = new TextDecoder().decode(value);
+            const textResponse = new TextDecoder().decode(value, {stream: true});
             const yamlStartIndex = textResponse.indexOf('-');
             if (yamlStartIndex !== -1) {
                  const parsed = jsyaml.load(textResponse.substring(yamlStartIndex));
@@ -251,27 +308,47 @@ function log(message) {
     logEl.scrollTop = logEl.scrollHeight;
 }
 
-document.getElementById('btn-connect').addEventListener('click', connect);
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btn-connect').addEventListener('click', connect);
 
-// 일반 명령어 버튼 처리
-document.querySelectorAll('.cmd-btn').forEach(button => {
-    button.addEventListener('click', (e) => {
-        const { method, path, payload } = e.target.dataset;
-        sendMup1Command(method, path, JSON.parse(payload));
+    document.querySelectorAll('.cmd-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const { method, path, payload } = e.target.dataset;
+            sendMup1Command(method, path, JSON.parse(payload));
+        });
+    });
+
+    document.getElementById('btn-patch-if').addEventListener('click', () => {
+        const name = document.getElementById('if-name').value;
+        const enabled = document.getElementById('if-enabled').value === 'true';
+        if (!name) return alert('Interface Name is required.');
+        const path = "/ietf-interfaces:interfaces/interface";
+        const payload = [{ name, enabled }];
+        sendMup1Command('ipatch', path, payload);
+    });
+
+    document.getElementById('btn-set-ptp').addEventListener('click', () => {
+        const instanceIndex = parseInt(document.getElementById('ptp-instance-idx').value, 10);
+        const portIndex = parseInt(document.getElementById('ptp-port-idx').value, 10);
+        const servoIndex = parseInt(document.getElementById('ptp-servo-idx').value, 10);
+
+        const path = "/ieee1588-ptp:ptp/instances/instance";
+        const payload = [{
+            "instance-index": instanceIndex,
+            "ports": { "port": [{ "port-index": portIndex }] },
+            "mchp-velocitysp-ptp:servos": { "servo": [{
+                "servo-index": servoIndex, "servo-type": "pi", "ltc-index": 0
+            }]}
+        }];
+        sendMup1Command('ipatch', path, payload);
+    });
+
+    document.getElementById('btn-fetch-ptp').addEventListener('click', () => {
+        const instanceIndex = document.getElementById('ptp-instance-idx').value;
+        const path = `/ieee1588-ptp:ptp/instances/instance[instance-index='${instanceIndex}']`;
+        sendMup1Command('fetch', path, [null]);
     });
 });
-
-// 특정 UI 요소와 연결된 명령어 처리
-document.getElementById('btn-patch-if').addEventListener('click', () => {
-    const name = document.getElementById('if-name').value;
-    const enabled = document.getElementById('if-enabled').value === 'true';
-    if (!name) return alert('Interface Name is required.');
-    
-    const path = "/ietf-interfaces:interfaces/interface";
-    const payload = [{ name, enabled }];
-    sendMup1Command('ipatch', path, payload);
-});
-
 </script>
 </body>
 </html>
