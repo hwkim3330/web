@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>KETI & NXP S32G - Advanced Control Center</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<style>
+:root {
+    --bg-base: #1a1b1e;
+    --bg-pane: #2a2b2f;
+    --bg-element: #3c3d42;
+    --border-color: #4a4a4f;
+    --text-primary: #f0f0f0;
+    --text-secondary: #a0a0a5;
+    --accent-blue: #007aff;
+    --accent-blue-hover: #3395ff;
+    --accent-green: #34c759;
+    --accent-yellow: #ffcc00;
+    --accent-red: #ff3b30;
+    --accent-purple: #af52de;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* --- Base & Layout --- */
+html, body {
+    height: 100%; margin: 0; padding: 0; background-color: var(--bg-base); color: var(--text-primary);
+    font-family: var(--font-sans); overflow: hidden; font-weight: 400;
+}
+#page-container { display: flex; height: 100%; }
+#terminal-pane { flex: 1.2; display: flex; flex-direction: column; min-width: 0; }
+#gui-pane { flex: 1; background-color: var(--bg-pane); border-left: 1px solid var(--border-color); overflow-y: auto; padding-bottom: 20px; }
+
+/* --- Headers --- */
+.pane-header {
+    padding: 12px 20px; background-color: var(--bg-base); flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color); font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; justify-content: space-between; color: white;
+}
+.pane-header .logo { height: 28px; vertical-align: middle; margin-right: 12px; }
+#controls { display: flex; align-items: center; padding: 10px 15px; background-color: var(--bg-pane); flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-color); }
+#terminal-container { flex-grow: 1; padding: 10px; overflow: hidden; background-color: var(--bg-base); }
+
+/* --- GUI Sections (details/summary) --- */
+.gui-section {
+    margin: 12px 15px 0; border: 1px solid var(--border-color); border-radius: 10px;
+    background-color: var(--bg-base); overflow: hidden; transition: all 0.2s ease-in-out;
+}
+.gui-section summary {
+    list-style: none; display: flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600;
+    padding: 14px 18px; background-color: #2c2d31; cursor: pointer; color: var(--text-primary);
+    border-bottom: 1px solid transparent; transition: background-color 0.2s;
+}
+.gui-section summary:hover { background-color: #3a3b40; }
+.gui-section[open] > summary { border-bottom-color: var(--border-color); }
+.gui-section summary::before {
+    content: '▶'; display: inline-block; font-size: 0.7em; margin-right: 5px;
+    transition: transform 0.2s ease-in-out; transform: rotate(0deg);
+}
+.gui-section[open] > summary::before { transform: rotate(90deg); }
+.gui-section > div { padding: 18px; }
+
+/* --- Form Elements & Buttons --- */
+button, select, input[type="text"], input[type="number"], input[type="password"] {
+    background-color: var(--bg-element); color: var(--text-primary); border: 1px solid var(--border-color);
+    padding: 10px 14px; font-size: 14px; cursor: pointer; border-radius: 8px; transition: all 0.2s;
+    box-sizing: border-box; width: 100%; font-family: var(--font-sans);
+}
+button {
+    background-color: var(--accent-blue); border: none; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+button:hover:not(:disabled) { background-color: var(--accent-blue-hover); transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+button:disabled { background-color: #555; color: #999; cursor: not-allowed; transform: none; box-shadow: none; }
+select:focus, input:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3); }
+
+.button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.input-group { display: flex; gap: 10px; margin-top: 12px; align-items: center; }
+.input-group label { font-size: 14px; color: var(--text-secondary); white-space: nowrap; }
+.input-group input, .input-group select { flex-grow: 1; }
+.input-group button { flex-shrink: 0; width: auto; justify-content: center; }
+
+/* --- Specific UI Components --- */
+.tsn-subsection { border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-top: 20px; }
+.tsn-subsection h4 { margin: 0 0 15px 0; font-size: 15px; color: var(--accent-blue); border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+.slider-group { display: flex; align-items: center; gap: 10px; }
+.slider-group input[type="range"] { flex-grow: 1; padding: 0; }
+.slider-group input[type="number"] { width: 120px; text-align: right; }
+.toggle-switch { display: flex; align-items: center; gap: 10px; }
+.toggle-switch label { position: relative; display: inline-block; width: 44px; height: 24px; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-switch .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; border-radius: 24px; transition: .4s; }
+.toggle-switch .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 2px; bottom: 2px; background-color: white; border-radius: 50%; transition: .4s; }
+.toggle-switch input:checked + .slider { background-color: var(--accent-green); }
+.toggle-switch input:checked + .slider:before { transform: translateX(20px); }
+
+/* --- Modal Styles --- */
+.modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(5px); justify-content: center; align-items: center; }
+.modal-content { background-color: var(--bg-pane); margin: auto; padding: 25px; border: 1px solid var(--border-color); border-radius: 12px; width: 90%; max-width: 650px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+.modal-content h2 { margin-top: 0; color: var(--accent-blue); }
+.modal-content label { display: block; margin: 15px 0 5px 0; color: var(--text-secondary); font-weight: 500; }
+.modal-content textarea { width: 100%; height: 250px; font-family: 'SF Mono', 'Courier New', monospace; font-size: 14px; resize: vertical; }
+.modal-footer { margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px; }
+.modal-footer button { width: auto; }
+#uploadStatus { margin-top: 15px; font-size: 14px; color: var(--accent-yellow); }
+#fileInput { background-color: var(--bg-element); border: 1px dashed var(--border-color); text-align: center; }
+
+</style>
+</head>
+<body>
+  <div id="page-container">
+    <div id="terminal-pane">
+        <div id="controls">
+            <button id="connectBtn" style="background-color: var(--accent-green);">🔌 Connect</button>
+            <button id="disconnectBtn" style="background-color: var(--accent-red);" disabled>❌ Disconnect</button>
+            <select id="baudRateSelect" style="width:auto;">
+                <option value="115200" selected>115200</option><option value="57600">57600</option><option value="9600">9600</option>
+            </select>
+            <button id="clearTermBtn" style="width:auto; background-color: var(--bg-element);">🧹 Clear</button>
+            <button id="apiKeyBtn" style="width:auto; margin-left: auto; background-color: var(--bg-element);">🔑 AI Keys</button>
+        </div>
+        <div id="terminal-container"></div>
+    </div>
+    <div id="gui-pane">
+        <div class="pane-header">
+            <div>
+                <img src="https://github.com/user-attachments/assets/eaa36443-81b3-41ab-995a-faea06c5f5af" class="logo" alt="KETI & NXP Logo">
+                <span>S32G Advanced Control Center</span>
+            </div>
+            <div class="header-controls">
+                <button id="toggleAllSectionsBtn" style="font-size: 12px; padding: 6px 10px; width: auto; background-color: var(--bg-element);">Collapse All</button>
+            </div>
+        </div>
+        
+        <details class="gui-section" open><summary>✨ AI Assistant</summary><div>
+            <div class="input-group">
+                <input type="text" id="ai-prompt" placeholder="e.g., 'Show TSN traffic on eth0'">
+            </div>
+            <div class="button-grid" style="margin-top: 12px;">
+                <button id="aiGenerateBtn" style="background-color: var(--accent-purple);">🤖 Generate Command</button>
+                <button id="aiExplainBtn" style="background-color: var(--accent-purple);">💡 Explain Last Command</button>
+            </div>
+        </div></details>
+
+        <details class="gui-section" open><summary>⏰ Advanced TSN Command Builder</summary><div>
+            <p style="font-size: 14px; color: var(--text-secondary); margin-top: 0;">Build and run PTP, CBS, and TAPRIO commands based on the NXP S32G documentation.</p>
+
+            <div class="tsn-subsection">
+                <h4>IEEE 1588 PTP Control (ptp4l)</h4>
+                <div class="input-group">
+                    <label for="ptpInterface">Interface</label>
+                    <input type="text" id="ptpInterface" value="end0">
+                </div>
+                <div class="input-group" style="justify-content: space-around; margin-top: 15px;">
+                    <div class="toggle-switch"><span>HW Timestamp</span><label><input type="checkbox" id="ptpHardware" checked><span class="slider"></span></label></div>
+                    <div class="toggle-switch"><span>Master Output</span><label><input type="checkbox" id="ptpMaster" checked><span class="slider"></span></label></div>
+                    <div class="toggle-switch"><span>Slave Mode</span><label><input type="checkbox" id="ptpSlave" checked><span class="slider"></span></label></div>
+                </div>
+                <button id="runPtp4lBtn" style="margin-top: 15px;">▶️ Run PTP4L Synchronization</button>
+            </div>
+            
+            <div class="tsn-subsection">
+                <h4>IEEE 802.1Qav/Qbv Control (tc)</h4>
+                <div class="input-group">
+                    <label for="tcAction">Action</label>
+                    <select id="tcAction">
+                        <option value="add">add</option>
+                        <option value="replace" selected>replace</option>
+                    </select>
+                    <label for="tcInterface">Interface</label>
+                    <input type="text" id="tcInterface" value="end0">
+                </div>
+                
+                <h5 style="margin-top:20px; margin-bottom: 10px; color: var(--text-secondary);">Credit-Based Shaper (CBS)</h5>
+                <div class="input-group"><label for="cbsParent">Parent Queue</label><input type="text" id="cbsParent" value="1:2"></div>
+                <div class="input-group"><label for="cbsIdleSlope">IdleSlope</label><div class="slider-group"><input type="range" id="cbsIdleSlopeSlider" min="1000" max="1000000" value="67000" step="1000"><input type="number" id="cbsIdleSlope" value="67000"></div></div>
+                <div class="input-group"><label for="cbsSendSlope">SendSlope</label><div class="slider-group"><input type="range" id="cbsSendSlopeSlider" min="-1000000" max="-1000" value="-933000" step="1000"><input type="number" id="cbsSendSlope" value="-933000"></div></div>
+                <div class="input-group" style="margin-top: 15px;"><div class="toggle-switch"><span>Offload</span><label><input type="checkbox" id="cbsOffload" checked><span class="slider"></span></label></div></div>
+                <button id="runCbsBtn" style="margin-top: 15px;">⚙️ Configure CBS</button>
+                
+                <h5 style="margin-top:20px; margin-bottom: 10px; color: var(--text-secondary);">MQPRIO / TAPRIO (Examples)</h5>
+                <button id="runMqprioBtn" style="margin-top: 10px; background-color: #4a4b50;">Configure MQPRIO (Example)</button>
+                <button id="runTaprioBtn" style="margin-top: 10px; background-color: #4a4b50;">Configure TAPRIO (Example)</button>
+            </div>
+        </div></details>
+        
+        <details class="gui-section"><summary>📂 File & Directory</summary><div>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ls -lha">List Files (ls -lha)</button>
+                <button class="cmd-btn" data-cmd="pwd">Current Directory (pwd)</button>
+                <button id="uploadFileModalBtn">⬆️ Upload File</button>
+            </div>
+        </div></details>
+        
+        <details class="gui-section"><summary>🩺 System & Processes</summary><div>
+             <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ps aux">Process List</button>
+                <button class="cmd-btn" data-cmd="top -b -n 1">Top Processes</button>
+                <button class="cmd-btn" data-cmd="dmesg | tail -n 50">Kernel Log</button>
+                <button class="cmd-btn" data-cmd="free -h">Memory</button>
+                <button class="cmd-btn" data-cmd="df -h">Disk</button>
+            </div>
+        </div></details>
+
+        <details class="gui-section"><summary>📡 Networking & CAN</summary><div>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ip -c a">IP Addresses</button>
+                <button class="cmd-btn" data-cmd="ethtool -T end0">PTP Caps (end0)</button>
+                <button class="cmd-btn" data-cmd="ip -s link show can0">CAN0 Stats</button>
+                <button class="cmd-btn" data-cmd="ip -s link show can1">CAN1 Stats</button>
+            </div>
+        </div></details>
+
+        <details class="gui-section"><summary>🚨 System Control</summary><div>
+            <div class="button-grid">
+                <button id="rebootBtn" style="background-color: var(--accent-yellow);">Reboot</button>
+                <button id="poweroffBtn" style="background-color: var(--accent-red);">Power Off</button>
+            </div>
+        </div></details>
+    </div>
+</div>
+
+<!-- Modals -->
+<div id="apiKeyModal" class="modal"><div class="modal-content"><h2>AI Provider API Keys</h2><p style="font-size:14px; color: var(--text-secondary);">Keys are stored locally in your browser.</p><label for="geminiApiKey">Google Gemini API Key:</label><input type="password" id="geminiApiKey" placeholder="Enter Gemini Key"><label for="mistralApiKey">Mistral API Key:</label><input type="password" id="mistralApiKey" placeholder="Enter Mistral Key"><div class="modal-footer"><button class="close-modal-btn" style="background-color: var(--bg-element);">Cancel</button><button id="saveApiKeysBtn" style="background-color: var(--accent-green);">Save</button></div></div></div>
+<div id="fileUploadModal" class="modal"><div class="modal-content"><h2>Upload File to Device (Binary Safe)</h2><p style="font-size:14px; color: var(--text-secondary);">Select a file and specify the destination path. Uses base64 for safe transfer of any file type.</p><label for="fileInput">Local File:</label><input type="file" id="fileInput" style="padding: 20px;"><label for="devicePathInput">Destination Path on Device (e.g., /tmp/myfile.txt):</label><input type="text" id="devicePathInput" placeholder="/tmp/uploaded_file"><div id="uploadStatus"></div><div class="modal-footer"><button class="close-modal-btn" style="background-color: var(--bg-element);">Cancel</button><button id="uploadFileBtn" style="background-color: var(--accent-green);">Upload</button></div></div></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const App = {
+        // --- STATE ---
+        state: { port: null, reader: null, writer: null, isReading: false, lastCommand: '', onDataDisposable: null, areSectionsExpanded: true },
+        // --- UI ELEMENTS ---
+        ui: {
+            connectBtn: document.getElementById('connectBtn'), disconnectBtn: document.getElementById('disconnectBtn'), baudRateSelect: document.getElementById('baudRateSelect'),
+            terminalContainer: document.getElementById('terminal-container'), guiPane: document.getElementById('gui-pane'), apiKeyBtn: document.getElementById('apiKeyBtn'),
+            aiGenerateBtn: document.getElementById('aiGenerateBtn'), aiExplainBtn: document.getElementById('aiExplainBtn'),
+            toggleAllSectionsBtn: document.getElementById('toggleAllSectionsBtn'), allGuiSections: document.querySelectorAll('.gui-section'),
+            uploadFileBtn: document.getElementById('uploadFileBtn'), uploadStatus: document.getElementById('uploadStatus'),
+        },
+        // --- TERMINAL INSTANCE ---
+        term: new Terminal({
+            cursorBlink: true, fontFamily: 'SF Mono, Consolas, "Courier New", monospace', fontSize: 14, theme: { background: '#1a1b1e', foreground: '#f0f0f0', cursor: '#f0f0f0', selectionBackground: '#555' }
+        }),
+        fitAddon: new FitAddon.FitAddon(),
+
+        // --- METHODS ---
+        methods: {
+            init() {
+                if (!navigator.serial) { App.methods.showCompatibilityError(); return; }
+                App.term.loadAddon(App.fitAddon);
+                App.term.open(App.ui.terminalContainer);
+                App.fitAddon.fit();
+                new ResizeObserver(() => App.fitAddon.fit()).observe(App.ui.terminalContainer);
+                App.methods.setGuiEnabled(false);
+                App.methods.bindEvents();
+            },
+            showCompatibilityError() {
+                App.ui.terminalContainer.innerHTML = `<div style="padding: 20px; color: #ffcc00; font-size: 16px;"><h2>⚠️ Web Serial API Not Supported</h2><p>Your browser may not support the Web Serial API. Please use a recent version of Chrome, Edge, or Opera.</p></div>`;
+                document.getElementById('controls').style.display = 'none'; App.ui.guiPane.style.display = 'none';
+            },
+            setGuiEnabled(enabled) {
+                document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select').forEach(c => c.disabled = !enabled);
+                App.ui.apiKeyBtn.disabled = false;
+                if (!enabled || (!localStorage.getItem('geminiApiKey') && !localStorage.getItem('mistralApiKey'))) {
+                    App.ui.aiGenerateBtn.disabled = true; App.ui.aiExplainBtn.disabled = true;
+                }
+            },
+            showModal(modalId) { document.getElementById(modalId).style.display = 'flex'; },
+            hideModal(modalId) { document.getElementById(modalId).style.display = 'none'; },
+            toggleAllSections() {
+                App.state.areSectionsExpanded = !App.state.areSectionsExpanded;
+                App.ui.allGuiSections.forEach(section => section.open = App.state.areSectionsExpanded);
+                App.ui.toggleAllSectionsBtn.textContent = App.state.areSectionsExpanded ? 'Collapse All' : 'Expand All';
+            },
+            async sendSerial(data) {
+                if (!App.state.port?.writable) return;
+                try {
+                    App.state.writer = App.state.port.writable.getWriter();
+                    await App.state.writer.write(new TextEncoder().encode(data));
+                } catch (e) { App.term.writeln(`\r\n\x1b[31m[ERROR] Write failed: ${e.message}\x1b[0m`); } 
+                finally { if (App.state.writer) App.state.writer.releaseLock(); }
+            },
+            async sendCommand(cmd, showInTerm = true) {
+                if (App.state.port && cmd) {
+                    App.term.focus();
+                    if(showInTerm) App.term.writeln(`\r\n\x1b[34m$ ${cmd}\x1b[0m`);
+                    await this.sendSerial(cmd + '\r');
+                    App.state.lastCommand = cmd;
+                }
+            },
+            async connect() {
+                if (App.state.port) return;
+                try {
+                    App.state.port = await navigator.serial.requestPort();
+                    await App.state.port.open({ baudRate: parseInt(App.ui.baudRateSelect.value, 10) });
+                    App.ui.connectBtn.disabled = true; App.ui.disconnectBtn.disabled = false; this.setGuiEnabled(true);
+                    App.state.isReading = true; this.readLoop();
+                    App.term.writeln('\x1b[32m[SYSTEM] KETI-NXP S32G Connected\x1b[0m');
+                    App.term.focus(); App.state.onDataDisposable = App.term.onData(data => this.sendSerial(data));
+                } catch (error) { App.term.writeln(`\r\n\x1b[31m[ERROR] ${error.message}\x1b[0m`); }
+            },
+            async disconnect() {
+                const portToClose = App.state.port; if (!portToClose) return;
+                App.state.isReading = false;
+                if (App.state.onDataDisposable) App.state.onDataDisposable.dispose();
+                if (App.state.reader) { try { await App.state.reader.cancel(); } catch(e) {} }
+                if (portToClose.writable) { try { await portToClose.writable.close(); } catch(e) {} }
+                try { await portToClose.close(); } catch(e) {}
+                if (App.state.port === portToClose) {
+                    App.state.port = null; App.ui.connectBtn.disabled = false; App.ui.disconnectBtn.disabled = true;
+                    this.setGuiEnabled(false); App.term.writeln('\r\n\x1b[33m[SYSTEM] Disconnected\x1b[0m');
+                }
+            },
+            async readLoop() {
+                const textDecoder = new TextDecoderStream();
+                const readableStreamClosed = App.state.port.readable.pipeTo(textDecoder.writable);
+                App.state.reader = textDecoder.readable.getReader();
+                try {
+                    while (App.state.isReading) {
+                        const { value, done } = await App.state.reader.read();
+                        if (done) break;
+                        App.term.write(value);
+                    }
+                } catch (error) { if (App.state.isReading) App.term.writeln(`\r\n\x1b[31m[ERROR] Read loop failed: ${error.message}\x1b[0m`); } 
+                finally { App.state.reader.releaseLock(); await readableStreamClosed.catch(() => {}); if (App.state.isReading) await this.disconnect(); }
+            },
+            bindEvents() {
+                // Main Controls
+                App.ui.connectBtn.addEventListener('click', () => this.connect());
+                App.ui.disconnectBtn.addEventListener('click', () => this.disconnect());
+                navigator.serial?.addEventListener('disconnect', (e) => { if (e.target === App.state.port) this.disconnect(); });
+                document.getElementById('clearTermBtn').addEventListener('click', () => { App.term.clear(); App.term.write('\x1b[H\x1b[2J'); });
+                App.ui.toggleAllSectionsBtn.addEventListener('click', () => this.toggleAllSections());
+
+                // Simple command buttons
+                document.querySelectorAll('.cmd-btn').forEach(b => b.addEventListener('click', () => this.sendCommand(b.dataset.cmd)));
+                document.getElementById('rebootBtn').addEventListener('click', () => { if (confirm('REBOOT the device?')) this.sendCommand('reboot'); });
+                document.getElementById('poweroffBtn').addEventListener('click', () => { if (confirm('POWER OFF the device?')) this.sendCommand('poweroff'); });
+
+                // Modal Triggers & Actions
+                document.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal').style.display = 'none'));
+                App.ui.apiKeyBtn.addEventListener('click', () => {
+                    document.getElementById('geminiApiKey').value = localStorage.getItem('geminiApiKey') || '';
+                    document.getElementById('mistralApiKey').value = localStorage.getItem('mistralApiKey') || '';
+                    this.showModal('apiKeyModal');
+                });
+                document.getElementById('saveApiKeysBtn').addEventListener('click', () => {
+                    localStorage.setItem('geminiApiKey', document.getElementById('geminiApiKey').value.trim());
+                    localStorage.setItem('mistralApiKey', document.getElementById('mistralApiKey').value.trim());
+                    this.hideModal('apiKeyModal'); this.setGuiEnabled(App.state.port?.readable); App.term.writeln('\r\n\x1b[32m[SYSTEM] API Keys saved locally.\x1b[0m');
+                });
+                document.getElementById('uploadFileModalBtn').addEventListener('click', () => {
+                    App.ui.uploadStatus.textContent = ''; document.getElementById('fileInput').value = ''; this.showModal('fileUploadModal');
+                });
+                App.ui.uploadFileBtn.addEventListener('click', this.handleFileUpload.bind(this));
+
+                // AI Buttons
+                App.ui.aiGenerateBtn.addEventListener('click', this.handleAiGenerate.bind(this));
+                App.ui.aiExplainBtn.addEventListener('click', this.handleAiExplain.bind(this));
+
+                // TSN Command Builder
+                document.getElementById('runPtp4lBtn').addEventListener('click', this.runPtp4l.bind(this));
+                document.getElementById('runCbsBtn').addEventListener('click', this.runCbs.bind(this));
+                document.getElementById('runMqprioBtn').addEventListener('click', this.runMqprio.bind(this));
+                document.getElementById('runTaprioBtn').addEventListener('click', this.runTaprio.bind(this));
+                this.syncSlider('cbsIdleSlopeSlider', 'cbsIdleSlope');
+                this.syncSlider('cbsSendSlopeSlider', 'cbsSendSlope');
+            },
+            
+            // --- Feature Implementations ---
+            handleFileUpload() {
+                const file = document.getElementById('fileInput').files[0];
+                const devicePath = document.getElementById('devicePathInput').value.trim();
+                if (!file || !devicePath) { App.ui.uploadStatus.textContent = 'Please select a file and specify a destination path.'; return; }
+                const reader = new FileReader();
+                App.ui.uploadFileBtn.disabled = true; App.ui.uploadStatus.textContent = `Encoding ${file.name}...`;
+                reader.onload = (e) => {
+                    const base64Content = e.target.result.split(',')[1];
+                    const cmd = `echo '${base64Content}' | base64 -d > ${devicePath}`;
+                    this.sendCommand(cmd, false).then(() => {
+                        App.term.writeln(`\r\n\x1b[32m[SYSTEM] Upload command for ${file.name} sent to ${devicePath}.\x1b[0m`);
+                        App.ui.uploadStatus.textContent = 'Upload complete!';
+                        setTimeout(() => this.hideModal('fileUploadModal'), 1500);
+                    });
+                };
+                reader.onloadend = () => { App.ui.uploadFileBtn.disabled = false; };
+                reader.readAsDataURL(file);
+            },
+            async callAI(prompt, button) {
+                const geminiKey = localStorage.getItem('geminiApiKey');
+                const mistralKey = localStorage.getItem('mistralApiKey');
+                if (!geminiKey && !mistralKey) { App.term.writeln('\r\n\x1b[31m[AI ERROR] No API Key found.\x1b[0m'); return null; }
+                const provider = geminiKey ? 'Gemini' : 'Mistral';
+                const url = geminiKey ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiKey}` : 'https://api.mistral.ai/v1/chat/completions';
+                const options = { method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: geminiKey ? JSON.stringify({ "contents": [{ "parts": [{ "text": prompt }] }] }) : JSON.stringify({ model: "mistral-tiny", messages: [{"role": "user", "content": prompt}], "Authorization": `Bearer ${mistralKey}` })
+                };
+                if(button) button.disabled = true;
+                App.term.writeln(`\r\n\x1b[35m[AI] Asking ${provider}...\x1b[0m`);
+                try {
+                    const res = await fetch(url, options);
+                    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+                    const data = await res.json();
+                    return geminiKey ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
+                } catch (error) { App.term.writeln(`\r\n\x1b[31m[AI ERROR] ${error.message}\x1b[0m`); return null; }
+                finally { if(button) button.disabled = false; }
+            },
+            async handleAiGenerate(e) {
+                const promptText = document.getElementById('ai-prompt').value.trim();
+                if (!promptText) return;
+                const fullPrompt = `You are an expert on Linux for NXP S32G. Generate a single, executable shell command for: "${promptText}". Provide only the raw command, no explanations or backticks.`;
+                const result = await this.callAI(fullPrompt, e.target);
+                if (result) {
+                    const command = result.replace(/`/g, '').trim();
+                    App.term.writeln(`\r\n\x1b[32m[AI Suggestion] ${command}\x1b[0m`);
+                    if (confirm(`Execute this command?\n\n${command}`)) { this.sendCommand(command); }
+                }
+            },
+            async handleAiExplain(e) {
+                if (!App.state.lastCommand) { App.term.writeln('\r\n\x1b[33m[AI] No command executed yet.\x1b[0m'); return; }
+                const fullPrompt = `You are an expert on NXP S32G. Explain this command simply: "${App.state.lastCommand}".`;
+                const result = await this.callAI(fullPrompt, e.target);
+                if (result) { App.term.writeln(`\r\n\x1b[36m[AI Explanation for: ${App.state.lastCommand}]\r\n${result.replace(/\n/g, '\r\n')}\x1b[0m`); }
+            },
+            syncSlider(sliderId, inputId) {
+                const slider = document.getElementById(sliderId);
+                const input = document.getElementById(inputId);
+                slider.addEventListener('input', () => input.value = slider.value);
+                input.addEventListener('input', () => slider.value = input.value);
+            },
+            
+            // --- TSN Command Functions ---
+            runPtp4l() {
+                const iface = document.getElementById('ptpInterface').value.trim();
+                if (!iface) { alert('Interface cannot be empty.'); return; }
+                let cmd = 'ptp4l -2';
+                if (document.getElementById('ptpHardware').checked) cmd += ' -H';
+                if (document.getElementById('ptpMaster').checked) cmd += ' -m';
+                if (document.getElementById('ptpSlave').checked) cmd += ' -s';
+                cmd += ` -i ${iface}`;
+                this.sendCommand(cmd);
+            },
+            runCbs() {
+                const action = document.getElementById('tcAction').value;
+                const iface = document.getElementById('tcInterface').value.trim();
+                const parent = document.getElementById('cbsParent').value.trim();
+                const idle = document.getElementById('cbsIdleSlope').value;
+                const send = document.getElementById('cbsSendSlope').value;
+                if (!iface || !parent) { alert('Interface and Parent Queue cannot be empty.'); return; }
+                let cmd = `tc qdisc ${action} dev ${iface} parent ${parent} cbs idleslope ${idle} sendslope ${send} hicredit 2147483647 locredit -2147483648`;
+                if (document.getElementById('cbsOffload').checked) cmd += ' offload 1';
+                this.sendCommand(cmd);
+            },
+            runMqprio() {
+                const action = document.getElementById('tcAction').value;
+                const iface = document.getElementById('tcInterface').value.trim();
+                if (!iface) { alert('Interface cannot be empty.'); return; }
+                const cmd = `tc qdisc ${action} dev ${iface} root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4`;
+                this.sendCommand(cmd);
+            },
+            runTaprio() {
+                const action = document.getElementById('tcAction').value;
+                const iface = document.getElementById('tcInterface').value.trim();
+                if (!iface) { alert('Interface cannot be empty.'); return; }
+                // NOTE: This is the complex example command from the document.
+                const cmd = `tc qdisc ${action} dev ${iface} root taprio num_tc 5 map 0 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4 base-time 0 sched-entry S 10 50000 sched-entry S 0f 450000 sched-entry S 1f 96 flags 0x2`;
+                this.sendCommand(cmd);
+            }
+        }
+    };
+    App.methods.init();
+});
+</script>
+</body>
+</html>
