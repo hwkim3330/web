@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>V-DRIVE Web Console</title>
+    <!-- 외부 라이브러리는 안정적인 CDN으로 로드 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/cbor-x@1.5.8/dist/index.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js" defer></script>
+    <style>
+        :root { --font-family: -apple-system, system-ui, sans-serif; }
+        body { padding: 1.5rem; max-width: 1200px; margin: auto; }
+        pre { min-height: 40vh; max-height: 60vh; font-size: 0.85em; white-space: pre-wrap; word-break: break-all; }
+        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; align-items: end; }
+        .hidden { display: none !important; }
+        #status-text { margin-top: 0.5rem; }
+        #btn-connect.secondary { background-color: var(--pico-color-red-550); border-color: var(--pico-color-red-550); }
+        #btn-connect.secondary:hover { background-color: var(--pico-color-red-600); }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <header>
+            <hgroup>
+                <h1>V-DRIVE Web Console</h1>
+                <h2>Auto-loading, single-file edition for GitHub Pages.</h2>
+            </hgroup>
+        </header>
+
+        <article>
+            <div class="grid">
+                <div>
+                    <button id="btn-connect" aria-busy="true">Loading Dictionary...</button>
+                    <small id="status-text"></small>
+                </div>
+            </div>
+        </article>
+
+        <!-- 명령어 UI는 연결 성공 후 나타남 -->
+        <section id="command-area" class="hidden">
+            <form id="command-form">
+                <details open>
+                    <summary><strong>Interface Commands</strong></summary>
+                    <button type="button" class="cmd-btn" data-method="fetch" data-path="/ietf-interfaces:interfaces/interface" data-payload="[null]">Get All Interfaces</button>
+                    <footer>
+                        <label>Name: <input type="text" id="if-name" value="12" style="width: 80px;"></label>
+                        <label>Enabled: <select id="if-enabled" style="width: 120px;"><option value="true">true</option><option value="false">false</option></select></label>
+                        <button type="button" id="btn-patch-if">Set Port State</button>
+                    </footer>
+                </details>
+                 <details>
+                    <summary><strong>System Commands</strong></summary>
+                    <button type="button" class="cmd-btn" data-method="post" data-path="/mchp-velocitysp-system:save-config" data-payload="null">Save Running Config</button>
+                </details>
+            </form>
+        </section>
+
+        <pre><code id="log-output"></code></pre>
+    </main>
+
+<script>
+// --- 1. SID 파일 목록 하드코딩 ---
+const SID_FILES = [
+    "iana-crypt-hash@2014-08-06.sid", "iana-hardware@2018-03-13.sid", "iana-if-type@2017-01-19.sid",
+    "ieee1588-ptp-dev@2024-04-12.sid", "ieee1588-ptp@2022-08-30.sid", "ieee802-dot1ab-lldp-dev@2024-04-12.sid",
+    "ieee802-dot1ab-lldp@2022-03-15.sid", "ieee802-dot1ab-types@2022-03-15.sid", "ieee802-dot1as-ptp@2022-09-16.sid",
+    "ieee802-dot1cb-stream-identification-dev@2025-06-30.sid", "ieee802-dot1cb-stream-identification-types@2021-12-09.sid",
+    "ieee802-dot1cb-stream-identification@2021-12-08.sid", "ieee802-dot1q-bridge-dev@2024-04-12.sid",
+    "ieee802-dot1q-bridge@2023-04-17.sid", "ieee802-dot1q-preemption-bridge@2022-08-18.sid",
+    "ieee802-dot1q-preemption@2022-08-18.sid", "ieee802-dot1q-psfp-bridge@2023-03-08.sid",
+    "ieee802-dot1q-psfp@2023-03-16.sid", "ieee802-dot1q-sched-bridge@2023-03-08.sid", "ieee802-dot1q-sched@2023-03-16.sid",
+    "ieee802-dot1q-stream-filters-gates@2023-01-24.sid", "ieee802-dot1q-types@2023-03-16.sid",
+    "ieee802-ethernet-interface@2019-06-21.sid", "ieee802-types@2023-04-19.sid",
+    "ietf-constrained-yang-library-dev@2024-04-12.sid", "ietf-constrained-yang-library@2019-03-28.sid",
+    "ietf-coreconf@2024-03-04.sid", "ietf-datastores@2018-02-14.sid", "ietf-hardware-dev@2025-03-31.sid",
+    "ietf-hardware@2018-03-13.sid", "ietf-inet-types@2013-07-15.sid", "ietf-interfaces-dev@2024-04-12.sid",
+    "ietf-interfaces@2018-02-20.sid", "ietf-ip@2018-02-22.sid", "ietf-ipv4-unicast-routing@2018-03-13.sid",
+    "ietf-netconf-acm-dev@2024-04-12.sid", "ietf-netconf-acm@2018-02-14.sid", "ietf-restconf@2017-01-26.sid",
+    "ietf-routing-dev@2024-04-12.sid", "ietf-routing@2018-03-13.sid", "ietf-sid-file@2023-10-27.sid",
+    "ietf-system-dev@2024-04-12.sid", "ietf-system@2014-08-06.sid", "ietf-yang-structure-ext@2020-06-17.sid",
+    "ietf-yang-types@2013-07-15.sid", "mchp-velocitysp-acl@2025-06-30.sid", "mchp-velocitysp-aggr@2025-06-30.sid",
+    "mchp-velocitysp-bridge@2025-06-30.sid", "mchp-velocitysp-dhcp@2023-02-23.sid",
+    "mchp-velocitysp-ip@2023-10-04.sid", "mchp-velocitysp-port@2025-06-30.sid",
+    "mchp-velocitysp-ptp@2025-06-25.sid", "mchp-velocitysp-redbox@2025-06-30.sid",
+    "mchp-velocitysp-system@2025-06-30.sid"
+];
+const YANG_CATALOG_PATH = './yang-catalog/';
+let YANG_DICTIONARY = {};
+let port, writer, reader;
+
+// --- 2. 백그라운드 자동 로딩 및 파싱 ---
+(async function initialize() {
+    log('Initializing Console...');
+    try {
+        const promises = SID_FILES.map(filename =>
+            fetch(`${YANG_CATALOG_PATH}${filename}`).then(res => {
+                if (!res.ok) throw new Error(`Failed to load ${filename}`);
+                return res.text();
+            })
+        );
+        const contents = await Promise.all(promises);
+        contents.forEach(parseSidContent);
+        
+        document.getElementById('btn-connect').disabled = false;
+        document.getElementById('btn-connect').ariaBusy = false;
+        document.getElementById('btn-connect').textContent = 'Connect to Device';
+        log(`✅ Console is ready. ${Object.keys(YANG_DICTIONARY).length} SIDs loaded.`);
+    } catch (err) {
+        log(`❌ Initialization failed: ${err.message}`);
+        document.getElementById('status-text').textContent = 'Initialization Failed!';
+        document.getElementById('status-text').style.color = 'salmon';
+    }
+})();
+
+function parseSidContent(content) {
+    content.split('\n').forEach(line => {
+        if (line.startsWith('#') || line.trim() === '') return;
+        const [sidStr, , nameStr] = line.split(',');
+        if (sidStr && nameStr) {
+            const sid = parseInt(sidStr.trim(), 10);
+            const name = nameStr.trim().replace(/"/g, '');
+            if (!isNaN(sid) && name) YANG_DICTIONARY[name] = sid;
+        }
+    });
+}
+
+// --- 3. 핵심 로직: CORECONF 페이로드 생성 ---
+function createCoreconfPayload(path, payloadData) {
+    if (Object.keys(YANG_DICTIONARY).length === 0) throw new Error("Dictionary not ready.");
+    
+    // 경로에서 모듈 이름과 각 세그먼트를 분리
+    const [moduleName, ...pathSegments] = path.replace(/^\//, '').split(/\/|:/);
+    
+    let currentPayload;
+
+    // 페이로드 데이터 타입에 따라 CBOR 맵 생성
+    if (payloadData === null) {
+        currentPayload = null; // fetch/post용
+    } else if (Array.isArray(payloadData)) {
+         currentPayload = payloadData.map(item => { // ipatch용
+            const cborMap = new Map();
+            for (const key in item) {
+                const sid = YANG_DICTIONARY[key];
+                if (sid === undefined) throw new Error(`SID for key '${key}' not in dictionary.`);
+                cborMap.set(sid, item[key]);
+            }
+            return cborMap;
+        });
+    } else {
+        throw new Error("Unsupported payload data type");
+    }
+
+    // 경로를 SID 태그로 감싸기 (거꾸로)
+    for (let i = pathSegments.length - 1; i >= 0; i--) {
+        const sid = YANG_DICTIONARY[pathSegments[i]];
+        if (sid === undefined) throw new Error(`SID for path '${pathSegments[i]}' not in dictionary.`);
+        currentPayload = new CBOR.CborTag(sid, currentPayload);
+    }
+    
+    // 최종 모듈 태그로 감싸기
+    const moduleSid = YANG_DICTIONARY[moduleName];
+    if (moduleSid === undefined) throw new Error(`SID for module '${moduleName}' not in dictionary.`);
+    currentPayload = new CBOR.CborTag(moduleSid, currentPayload);
+
+    return CBOR.encode(currentPayload);
+}
+
+// --- 4. MUP1 전송 및 Web Serial 통신 ---
+async function sendMup1Command(method, path, payloadData) {
+    if (!writer) return;
+    try {
+        const commandChar = method.charAt(0); // fetch -> f, ipatch -> p
+        log(`[TX] Method: ${method}, Path: ${path}`);
+        const cborPayload = createCoreconfPayload(path, payloadData);
+        
+        const frameHeader = new TextEncoder().encode(`>${commandChar}<`);
+        const finalFrame = new Uint8Array(frameHeader.length + cborPayload.length);
+        finalFrame.set(frameHeader);
+        finalFrame.set(cborPayload, frameHeader.length);
+        
+        log(`[TX-HEX] ${Array.from(finalFrame).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+        await writer.write(finalFrame);
+    } catch (err) {
+        log(`❌ Command Error: ${err.message}`);
+    }
+}
+
+async function connect() {
+    const connectButton = document.getElementById('btn-connect');
+    if (port) {
+        await disconnect();
+        return;
+    }
+    try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
+        
+        document.getElementById('status-text').textContent = 'Connected.';
+        connectButton.textContent = 'Disconnect';
+        connectButton.classList.add('secondary');
+        document.getElementById('command-area').classList.remove('hidden');
+        log('✅ Device connected.');
+        listenForData();
+    } catch (err) {
+        if (err.name !== 'AbortError') log(`❌ Connection failed: ${err.message}`);
+    }
+}
+
+async function disconnect() {
+    if (reader) await reader.cancel().catch(() => {});
+    if (writer) await writer.close().catch(() => {});
+    if (port) await port.close().catch(() => {});
+    port = writer = reader = undefined;
+    
+    document.getElementById('status-text').textContent = '';
+    document.getElementById('btn-connect').textContent = 'Connect to Device';
+    document.getElementById('btn-connect').classList.remove('secondary');
+    document.getElementById('command-area').classList.add('hidden');
+    log('🔌 Device disconnected.');
+}
+
+async function listenForData() {
+    while (port?.readable) {
+        try {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const textResponse = new TextDecoder().decode(value);
+            const yamlStartIndex = textResponse.indexOf('-');
+            if (yamlStartIndex !== -1) {
+                 const parsed = jsyaml.load(textResponse.substring(yamlStartIndex));
+                 log(`[RX]\n${jsyaml.dump(parsed, { indent: 2 })}`);
+            } else {
+                 log(`[RX-RAW] ${textResponse}`);
+            }
+        } catch (error) {
+            if (!error.message.includes("The device has been lost")) {
+                 log(`❌ Read loop error: ${error.message}`);
+            }
+            await disconnect();
+            break;
+        }
+    }
+}
+
+// --- 5. UI 이벤트 핸들러 및 초기화 ---
+function log(message) {
+    const logEl = document.getElementById('log-output');
+    logEl.textContent += `${new Date().toLocaleTimeString()}: ${message}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+document.getElementById('btn-connect').addEventListener('click', connect);
+
+// 일반 명령어 버튼 처리
+document.querySelectorAll('.cmd-btn').forEach(button => {
+    button.addEventListener('click', (e) => {
+        const { method, path, payload } = e.target.dataset;
+        sendMup1Command(method, path, JSON.parse(payload));
+    });
+});
+
+// 특정 UI 요소와 연결된 명령어 처리
+document.getElementById('btn-patch-if').addEventListener('click', () => {
+    const name = document.getElementById('if-name').value;
+    const enabled = document.getElementById('if-enabled').value === 'true';
+    if (!name) return alert('Interface Name is required.');
+    
+    const path = "/ietf-interfaces:interfaces/interface";
+    const payload = [{ name, enabled }];
+    sendMup1Command('ipatch', path, payload);
+});
+
+</script>
+</body>
+</html>
