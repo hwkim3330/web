@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Microchip VelocityDRIVE-SP :: Definitive Web Controller</title>
+    <script src="https://cdn.jsdelivr.net/npm/cbor-x@1.5.8/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <style>
+        :root {
+            --bg-color: #f1f5f9; --pane-bg: #ffffff; --border-color: #e2e8f0; --shadow-color: rgba(149, 157, 165, 0.2);
+            --text-primary: #0f172a; --text-secondary: #475569; --text-light: #94a3b8;
+            --accent-blue: #3b82f6; --accent-green: #16a34a; --accent-red: #ef4444; --accent-orange: #f97316;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        html, body { height: 100%; margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-primary); font-family: var(--font-sans); overflow: hidden; }
+        #app-container { display: grid; grid-template-columns: 1fr 1.2fr; grid-template-rows: auto 1fr; height: 100%; gap: 15px; padding: 15px; box-sizing: border-box; }
+        #header { grid-column: 1 / 3; display: flex; align-items: center; background: var(--pane-bg); padding: 10px 20px; border-radius: 12px; box-shadow: 0 4px 12px var(--shadow-color); }
+        #header h1 { font-size: 1.5rem; margin: 0; }
+        #controls { margin-left: auto; display: flex; gap: 10px; }
+        .pane { background: var(--pane-bg); border-radius: 12px; box-shadow: 0 4px 12px var(--shadow-color); display: flex; flex-direction: column; overflow: hidden; }
+        .pane-header { padding: 15px 20px; border-bottom: 1px solid var(--border-color); font-size: 1.1rem; font-weight: 600; user-select: none; }
+        .pane-content { padding: 20px; overflow-y: auto; flex-grow: 1; }
+        #port-dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px; }
+        .port { border: 2px solid var(--border-color); border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; transition: all 0.2s ease; }
+        .port:hover { transform: translateY(-3px); box-shadow: 0 6px 15px var(--shadow-color); }
+        .port.status-down { border-color: #cbd5e1; background-color: #f8fafc; }
+        .port.status-up { border-color: var(--accent-green); background-color: #f0fdf4; }
+        .port-name { font-weight: 600; font-size: 1.2rem; }
+        .port-speed, .port-status { font-size: 0.85rem; color: var(--text-secondary); }
+        #staging-area h5 { margin-top: 20px; }
+        #staging-list { list-style: none; padding: 0; font-size: 14px; max-height: 150px; overflow-y: auto; }
+        #staging-list li { background: #f8fafc; padding: 8px; border-radius: 4px; margin-bottom: 5px; }
+        #terminal-container { flex-grow: 1; padding: 0 10px 10px; }
+        button { background-color: var(--accent-blue); color: white; border: none; padding: 8px 16px; font-size: 14px; cursor: pointer; border-radius: 8px; transition: all 0.2s ease; font-weight: 500; }
+        button:hover:not(:disabled) { filter: brightness(1.1); }
+        button:disabled { background-color: #d1d5db; cursor: not-allowed; }
+        /* Modal Styles */
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); display: none; justify-content: center; align-items: center; }
+        .modal { background: white; padding: 25px; border-radius: 12px; min-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .modal h3 { margin-top: 0; }
+        .modal .form-group { margin-bottom: 15px; }
+        .modal .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .modal .form-group input, .modal .form-group select { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
+        .modal-actions { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <header id="header">
+            <h1>Web Controller</h1>
+            <div id="controls">
+                <button id="connectBtn" style="background-color:var(--accent-green)">🔌 Connect</button>
+                <button id="disconnectBtn" disabled>❌ Disconnect</button>
+                 <button id="pingBtn" style="background-color: var(--accent-orange);">🏓 Ping</button>
+            </div>
+        </header>
+        <div id="main-pane" class="pane">
+            <div class="pane-header">📊 Port Dashboard</div>
+            <div class="pane-content">
+                <div id="port-dashboard"></div>
+                <div id="staging-area" style="display:none;">
+                    <h5>Changes to Apply</h5>
+                    <ul id="staging-list"></ul>
+                    <button id="applyAllBtn" style="width:100%; margin-top:10px; background-color:var(--accent-red);">🚀 Apply All Changes</button>
+                </div>
+            </div>
+        </div>
+        <div id="log-pane" class="pane">
+            <div class="pane-header">🖥️ Logs & Terminal</div>
+            <div id="terminal-container"></div>
+        </div>
+    </div>
+    
+    <div id="port-modal" class="modal-backdrop">
+        <div class="modal">
+            <h3 id="modal-title">Edit Port</h3>
+            <form id="port-form">
+                <input type="hidden" id="modal-port-name">
+                <div class="form-group">
+                    <label for="modal-enabled">Enabled</label>
+                    <select id="modal-enabled">
+                        <option value="true">True</option>
+                        <option value="false">False</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="modal-speed">Speed</label>
+                     <select id="modal-speed">
+                        <option value="1.000">1G</option>
+                        <option value="10.000">10G</option>
+                        <option value="0.100">100M</option>
+                    </select>
+                </div>
+                 <div class="form-group" id="ip-group">
+                    <label for="modal-ip">IP Address</label>
+                    <input type="text" id="modal-ip">
+                </div>
+                 <div class="form-group" id="prefix-group">
+                    <label for="modal-prefix">Prefix Length</label>
+                    <input type="number" id="modal-prefix" min="0" max="32">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="modal-cancel">Cancel</button>
+                    <button type="submit" id="modal-save">Save Change</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+<script>
+const FULL_CONFIG_JSON = { "ietf-interfaces:interfaces": { "interface": [ { "name": "1", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "1.000" } } }, { "name": "2", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "1.000" } } }, { "name": "3", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "1.000" } } }, { "name": "4", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "1.000" } } }, { "name": "5", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "1.000" } } }, { "name": "6", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "1.000" } } }, { "name": "7", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "1.000" } } }, { "name": "8", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "10.000" } } }, { "name": "9", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "10.000" } } }, { "name": "10", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "10.000" } } }, { "name": "11", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "10.000" } } }, { "name": "12", "enabled": true, "oper-status": "down", "mchp-velocitysp-port:eth-port": { "config": { "speed": "1.000" } } }, { "name": "L3V1", "ietf-ip:ipv4": { "address": [{ "ip": "192.168.1.10", "prefix-length": 24 }] } } ] } };
+const SID_MAP = { '/ietf-interfaces:interfaces/interface/enabled': 7002, '/ietf-interfaces:interfaces/interface/mchp-velocitysp-port:eth-port/config/speed': 38102, '/ietf-interfaces:interfaces/interface/ietf-ip:ipv4/address/ip': 8006, '/ietf-interfaces:interfaces/interface/ietf-ip:ipv4/address/prefix-length': 8007 };
+const COAP = { GET: 1, IPATCH: 7, TYPE: { CON: 0 }, OPTION: { URI_PATH: 11, CONTENT_FORMAT: 12 }, FORMAT: { YANG_INSTANCES_CBOR: 142 } };
+const MUP1_SYM = { SOF: 0x3e, EOF: 0x3c, ESC: 0x5c };
+
+class ProtocolStack {
+    static buildCoapFrame({ code, msgId, path, payload, contentType }) {
+        const header = new Uint8Array(4); new DataView(header.buffer).setUint8(0, 0x40); new DataView(header.buffer).setUint8(1, code); new DataView(header.buffer).setUint16(2, msgId, false);
+        let options = []; let lastOptNum = 0;
+        if (path) { const delta = COAP.OPTION.URI_PATH - lastOptNum; options.push((delta << 4) | path.length, ...new TextEncoder().encode(path)); lastOptNum = COAP.OPTION.URI_PATH; }
+        if (contentType) { const delta = COAP.OPTION.CONTENT_FORMAT - lastOptNum; const valBytes = this.uintToBytes(contentType); options.push((delta << 4) | valBytes.length, ...valBytes); }
+        const frameParts = [header, new Uint8Array(options)];
+        if (payload?.length > 0) frameParts.push(new Uint8Array([0xFF]), payload);
+        return this.concatBuffers(frameParts);
+    }
+    static buildMup1Frame(typeChar, data) {
+        const type = typeChar.charCodeAt(0);
+        const checksumData = new Uint8Array([MUP1_SYM.SOF, type, ...data, MUP1_SYM.EOF, ...(data.length % 2 === 0 ? [MUP1_SYM.EOF] : [])]);
+        const checksum = this.calculateMup1Checksum(checksumData);
+        const escapedData = this.escapeMup1Data(data);
+        const frameParts = [ [MUP1_SYM.SOF, type], escapedData, [MUP1_SYM.EOF], ...(data.length % 2 === 0 ? [[MUP1_SYM.EOF]] : [[]]), checksum ];
+        return this.concatBuffers(frameParts.flat());
+    }
+    static escapeMup1Data(data) {
+        const escaped = []; const map = {0x3e: 0x3e, 0x3c: 0x3c, 0x5c: 0x5c, 0x00: 0x30, 0xff: 0x46};
+        for (const byte of data) { if (map[byte]) { escaped.push(MUP1_SYM.ESC, map[byte]); } else { escaped.push(byte); } }
+        return new Uint8Array(escaped);
+    }
+    static calculateMup1Checksum(data) {
+        let sum = 0; const view = new DataView(data.buffer);
+        for (let i = 0; i < Math.floor(data.length / 2); i++) sum += view.getUint16(i * 2, false);
+        if (data.length % 2 !== 0) sum += view.getUint8(data.length - 1) << 8;
+        sum = (sum >> 16) + (sum & 0xffff); sum += (sum >> 16); sum = (~sum) & 0xffff;
+        return new TextEncoder().encode(sum.toString(16).padStart(4, '0'));
+    }
+    static uintToBytes(n){ const b=[]; while(n>0){b.unshift(n&0xFF); n>>=8;} return b.length>0?b:[0];}
+    static concatBuffers(bufs) { const r=new Uint8Array(bufs.reduce((s,b)=>s+b.length,0)); let o=0; for(const b of bufs){r.set(b,o);o+=b.length;} return r; }
+}
+
+class AppController {
+    constructor() {
+        this.term = new Terminal({ theme: { background: '#f8fafc', foreground: '#334155', cursor: '#3b82f6' }, fontSize: 13, cursorBlink: true });
+        this.port = null;
+        this.config = null;
+        this.stagedChanges = [];
+        this.msgId = Math.floor(Math.random() * 0xFFFF);
+        this.init();
+    }
+    init() {
+        this.term.open(document.getElementById('terminal-container'));
+        this.bindEvents();
+        this.loadInitialData();
+    }
+    bindEvents() {
+        document.getElementById('connectBtn').addEventListener('click', () => this.connect());
+        document.getElementById('disconnectBtn').addEventListener('click', () => this.disconnect());
+        document.getElementById('pingBtn').addEventListener('click', () => this.sendPing());
+        document.getElementById('applyAllBtn').addEventListener('click', () => this.applyAllChanges());
+        document.getElementById('port-form').addEventListener('submit', (e) => { e.preventDefault(); this.savePortChanges(); });
+        document.getElementById('modal-cancel').addEventListener('click', () => this.closeModal());
+    }
+    log(type, message) {
+        const colors = { info: '\x1b[34m', success: '\x1b[32m', warn: '\x1b[33m', error: '\x1b[31m', tx: '\x1b[35m', rx: '\x1b[36m' };
+        this.term.writeln(`${colors[type] || ''}[${type.toUpperCase()}] ${message}\x1b[0m`);
+    }
+    async connect() {
+        try {
+            this.port = await navigator.serial.requestPort();
+            await this.port.open({ baudRate: 115200 });
+            this.log('success', 'Device connected via Web Serial.');
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnectBtn').disabled = false;
+        } catch (e) { this.log('error', e.message); }
+    }
+    async disconnect() {
+        if (this.port) { await this.port.close(); this.port = null; }
+        this.log('warn', 'Device disconnected.');
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('disconnectBtn').disabled = true;
+    }
+    loadInitialData() {
+        this.config = JSON.parse(JSON.stringify(FULL_CONFIG_JSON));
+        this.renderDashboard();
+    }
+    renderDashboard() {
+        const dashboard = document.getElementById('port-dashboard');
+        dashboard.innerHTML = '';
+        this.config['ietf-interfaces:interfaces'].interface.forEach(iface => {
+            const portEl = document.createElement('div');
+            portEl.className = `port status-${iface['oper-status'] || 'down'}`;
+            const speed = iface['mchp-velocitysp-port:eth-port']?.config?.speed?.replace('.000', 'G') || (iface['ietf-ip:ipv4'] ? 'L3' : '');
+            portEl.innerHTML = `<div class="port-name">${iface.name}</div><div class="port-status">${iface.enabled ? 'Enabled' : 'Disabled'}</div><div class="port-speed">${speed}</div>`;
+            portEl.addEventListener('click', () => this.openModal(iface.name));
+            dashboard.appendChild(portEl);
+        });
+    }
+    openModal(portName) {
+        const iface = this.config['ietf-interfaces:interfaces'].interface.find(i => i.name === portName);
+        if (!iface) return;
+        document.getElementById('modal-title').textContent = `Edit Port ${portName}`;
+        document.getElementById('modal-port-name').value = portName;
+        document.getElementById('modal-enabled').value = iface.enabled;
+        const speedEl = document.getElementById('modal-speed');
+        const ipGroup = document.getElementById('ip-group');
+        const prefixGroup = document.getElementById('prefix-group');
+        
+        if (iface['mchp-velocitysp-port:eth-port']) {
+            speedEl.value = iface['mchp-velocitysp-port:eth-port'].config.speed;
+            speedEl.parentElement.style.display = 'block';
+            ipGroup.style.display = 'none';
+            prefixGroup.style.display = 'none';
+        } else if (iface['ietf-ip:ipv4']) {
+            document.getElementById('modal-ip').value = iface['ietf-ip:ipv4'].address[0].ip;
+            document.getElementById('modal-prefix').value = iface['ietf-ip:ipv4'].address[0]['prefix-length'];
+            speedEl.parentElement.style.display = 'none';
+            ipGroup.style.display = 'block';
+            prefixGroup.style.display = 'block';
+        }
+        document.getElementById('port-modal').style.display = 'flex';
+    }
+    closeModal() { document.getElementById('port-modal').style.display = 'none'; }
+    savePortChanges() {
+        const portName = document.getElementById('modal-port-name').value;
+        const iface = this.config['ietf-interfaces:interfaces'].interface.find(i => i.name === portName);
+        const origIface = FULL_CONFIG_JSON['ietf-interfaces:interfaces'].interface.find(i => i.name === portName);
+
+        const newEnabled = document.getElementById('modal-enabled').value === 'true';
+        if (newEnabled !== (origIface.enabled || false)) {
+            this.stageChange(portName, 'enabled', newEnabled, SID_MAP['/ietf-interfaces:interfaces/interface/enabled']);
+        }
+        if (iface['mchp-velocitysp-port:eth-port']) {
+            const newSpeed = document.getElementById('modal-speed').value;
+            if (newSpeed !== origIface['mchp-velocitysp-port:eth-port'].config.speed) {
+                this.stageChange(portName, 'speed', newSpeed, SID_MAP['/ietf-interfaces:interfaces/interface/mchp-velocitysp-port:eth-port/config/speed']);
+            }
+        }
+        if (iface['ietf-ip:ipv4']) {
+            const newIp = document.getElementById('modal-ip').value;
+            const newPrefix = parseInt(document.getElementById('modal-prefix').value);
+            if(newIp !== origIface['ietf-ip:ipv4'].address[0].ip) this.stageChange(portName, 'ip', newIp, SID_MAP['/ietf-interfaces:interfaces/interface/ietf-ip:ipv4/address/ip']);
+            if(newPrefix !== origIface['ietf-ip:ipv4'].address[0]['prefix-length']) this.stageChange(portName, 'prefix', newPrefix, SID_MAP['/ietf-interfaces:interfaces/interface/ietf-ip:ipv4/address/prefix-length']);
+        }
+        this.closeModal();
+    }
+    stageChange(portName, field, value, sid) {
+        const change = { portName, field, value, sid };
+        this.stagedChanges.push(change);
+        this.log('info', `Staged change for Port ${portName}: ${field} -> ${value}`);
+        this.renderStagingArea();
+    }
+    renderStagingArea() {
+        const stagingArea = document.getElementById('staging-area');
+        const list = document.getElementById('staging-list');
+        list.innerHTML = '';
+        this.stagedChanges.forEach(change => {
+            const li = document.createElement('li');
+            li.textContent = `Port ${change.portName}: Set ${change.field} to ${change.value}`;
+            list.appendChild(li);
+        });
+        stagingArea.style.display = this.stagedChanges.length > 0 ? 'block' : 'none';
+    }
+    async applyAllChanges() {
+        if (this.stagedChanges.length === 0) { this.log('warn', 'No changes to apply.'); return; }
+        
+        const cborMap = new Map();
+        this.stagedChanges.forEach(change => {
+            const keyCbor = cbor.encode(change.portName);
+            const valueCbor = cbor.encode(change.value);
+            const entry = new Map([[203, [keyCbor, valueCbor]]]); // 203 = i-patch tag
+            cborMap.set(change.sid, entry);
+        });
+        const cborPayload = cbor.encode(cborMap);
+        this.log('info', `Generated CBOR for ${this.stagedChanges.length} changes.`);
+        
+        const coapFrame = ProtocolStack.buildCoapFrame({ code: COAP.IPATCH, msgId: this.msgId++, path: 'c', payload: cborPayload, contentType: COAP.FORMAT.YANG_INSTANCES_CBOR });
+        const mup1Frame = ProtocolStack.buildMup1Frame('c', coapFrame);
+        await this.sendFrame(mup1Frame);
+        
+        // Update local config state after successful application
+        this.stagedChanges.forEach(change => {
+            const iface = this.config['ietf-interfaces:interfaces'].interface.find(i => i.name === change.portName);
+            if(change.field === 'enabled') iface.enabled = change.value;
+            if(change.field === 'speed') iface['mchp-velocitysp-port:eth-port'].config.speed = change.value;
+            if(change.field === 'ip') iface['ietf-ip:ipv4'].address[0].ip = change.value;
+            if(change.field === 'prefix') iface['ietf-ip:ipv4'].address[0]['prefix-length'] = change.value;
+        });
+        
+        this.stagedChanges = [];
+        this.renderStagingArea();
+        this.renderDashboard();
+    }
+    async sendFrame(frame) {
+        if (!this.port) { this.log('error', 'Device not connected.'); return; }
+        const writer = this.port.writable.getWriter();
+        await writer.write(frame);
+        writer.releaseLock();
+        this.log('tx', `Sent ${frame.length} bytes: ${Array.from(frame).map(b => b.toString(16).padStart(2,'0')).join(' ')}`);
+    }
+    sendPing() { this.sendFrame(ProtocolStack.buildMup1Frame('p', new Uint8Array(0))); }
+}
+
+new AppController();
+
+</script>
+</body>
+</html>
