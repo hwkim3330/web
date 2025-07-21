@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>VelocityDRIVE-SP Interactive Web Controller</title>
+    <script src="https://cdn.jsdelivr.net/npm/cbor-x@1.5.8/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --glass-bg: rgba(255, 255, 255, 0.6);
+            --glass-border: rgba(210, 220, 230, 0.7);
+            --pane-bg: rgba(255, 255, 255, 0.8);
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        html, body {
+            height: 100%; margin: 0; padding: 0; background-color: var(--bg-color);
+            background-image: linear-gradient(135deg, #e0f2fe 0%, #f3e8ff 100%);
+            color: var(--text-primary); font-family: var(--font-sans); overflow: hidden;
+        }
+        #app-container { display: flex; height: 100%; gap: 10px; padding: 10px; }
+        .pane { background-color: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+        #left-pane { flex: 1.2; }
+        #right-pane { flex: 1; }
+        .pane-header { padding: 12px 20px; border-bottom: 1px solid var(--glass-border); font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 10px; user-select: none;}
+        .pane-content { padding: 20px; overflow-y: auto; }
+        #controls { padding: 12px; border-bottom: 1px solid var(--glass-border); display: flex; gap: 10px; align-items: center; }
+        button, select {
+            background-color: var(--accent-blue); color: white; border: none; padding: 8px 14px; font-size: 14px;
+            cursor: pointer; border-radius: 8px; transition: all 0.2s ease; font-weight: 500;
+        }
+        button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #terminal-container { flex-grow: 1; padding: 10px; }
+        .tree-view { list-style: none; padding-left: 20px; font-size: 14px; }
+        .tree-view li { position: relative; }
+        .tree-view .key { color: var(--accent-blue); font-weight: 500; cursor: pointer; }
+        .tree-view .value { color: var(--text-secondary); margin-left: 10px; }
+        .tree-view .toggle { position: absolute; left: -18px; top: 1px; cursor: pointer; user-select: none; width: 15px; text-align: center; }
+        .config-section h5 { margin: 15px 0 10px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        .input-group { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .input-group label { width: 120px; font-size: 14px; text-align: right; color: var(--text-secondary); }
+        .input-group input, .input-group select { flex-grow: 1; padding: 6px; border-radius: 6px; border: 1px solid #ccc; background-color: #fff; }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="left-pane" class="pane">
+            <div class="pane-header">🔧 Microchip Switch Config</div>
+            <div id="controls">
+                <button id="connectBtn" style="background-color:var(--accent-green)">🔌 Connect</button>
+                <button id="disconnectBtn" disabled>❌ Disconnect</button>
+                <button id="loadDataBtn">📥 Load & View Config</button>
+                <button id="applyChangesBtn" style="background-color:var(--accent-red)" disabled>🚀 Apply Changes</button>
+            </div>
+            <div class="pane-content" id="config-editor">
+                <h4>Quick Config Editor</h4>
+                <p style="font-size:13px; color:var(--text-secondary);">Load Config 후 포트별 주요 설정을 변경하고 Apply를 눌러 적용하세요.</p>
+                <!-- Quick config UI will be generated here -->
+            </div>
+        </div>
+        <div id="right-pane" class="pane">
+            <div class="pane-header">📄 Full Data View & Terminal</div>
+            <div class="pane-content" id="data-viewer">
+                 <p style="font-size:13px; color:var(--text-secondary);">Load Config를 누르면 전체 설정이 여기에 표시됩니다.</p>
+            </div>
+            <div id="terminal-container"></div>
+        </div>
+    </div>
+
+<script>
+// IMPORTANT: This is the full YAML data from the device output
+const FULL_CONFIG_YAML = `
+ietf-interfaces:interfaces:
+  interface:
+  - name: '1'
+    type: iana-if-type:ethernetCsmacd
+    enabled: true
+    oper-status: down
+    if-index: 1
+    phys-address: 02-06-3F-F5-0E-01
+    statistics:
+      in-octets: '0'
+    ieee802-ethernet-interface:ethernet:
+      auto-negotiation:
+        enable: false
+      speed: '1.000'
+    ieee802-dot1q-bridge:bridge-port:
+      port-type: ieee802-dot1q-bridge:d-bridge-port
+    mchp-velocitysp-port:eth-port:
+      config:
+        max-frame-length: 10240
+        speed: '1.000'
+  - name: '2'
+    type: iana-if-type:ethernetCsmacd
+    enabled: true
+    oper-status: down
+    if-index: 2
+    phys-address: 02-06-3F-F5-0E-02
+    statistics:
+      in-octets: '0'
+    ieee802-ethernet-interface:ethernet:
+      auto-negotiation:
+        enable: false
+      duplex: half
+      speed: '1.000'
+    ieee802-dot1q-bridge:bridge-port:
+      port-type: ieee802-dot1q-bridge:d-bridge-port
+    mchp-velocitysp-port:eth-port:
+      config:
+        max-frame-length: 10240
+        speed: '1.000'
+  - name: L3V1
+    type: iana-if-type:l3ipvlan
+    enabled: true
+    oper-status: down
+    if-index: 10001
+    phys-address: 02-06-3F-F5-0E-00
+    ietf-ip:ipv4:
+      enabled: true
+      address:
+      - ip: 192.168.1.10
+        prefix-length: 24
+        origin: static
+      neighbor: []
+ieee1588-ptp:ptp:
+  instances:
+    instance:
+    - instance-index: 0
+      instance-enable: true
+      instance-type: relay
+ietf-constrained-yang-library:yang-library:
+  checksum: RABXoR5m7tgryOg4NH9pTA==
+`;
+
+// A simple but more robust YAML to JSON parser
+function parseYaml(yamlStr) {
+    const lines = yamlStr.split('\n').filter(line => line.trim() !== '');
+    const root = {};
+    const stack = [{ node: root, indent: -1 }];
+
+    lines.forEach(line => {
+        const indent = line.search(/\S/);
+        const content = line.trim();
+
+        while (indent <= stack[stack.length - 1].indent) {
+            stack.pop();
+        }
+
+        const parent = stack[stack.length - 1].node;
+
+        if (content.endsWith(':')) { // Object
+            const key = content.slice(0, -1);
+            const newNode = {};
+            parent[key] = newNode;
+            stack.push({ node: newNode, indent });
+        } else if (content.startsWith('- ')) { // Array item
+            const itemContent = content.slice(2).trim();
+            if (!Array.isArray(parent)) {
+                console.error("Trying to push to non-array parent", parent);
+                return;
+            }
+            if (itemContent.includes(':')) {
+                const [key, value] = itemContent.split(/:(.*)/s).map(s => s.trim());
+                const obj = {};
+                obj[key.replace(/'/g, "")] = parseValue(value.replace(/'/g, ""));
+                parent.push(obj);
+            } else {
+                 const obj = {};
+                 parent.push(obj);
+                 stack.push({ node: obj, indent: indent + 2 });
+            }
+        } else if (content.includes(':')) { // Key-value
+            const [key, value] = content.split(/:(.*)/s).map(s => s.trim());
+            parent[key.replace(/'/g, "")] = parseValue(value.replace(/'/g, ""));
+        }
+    });
+
+    function parseValue(val) {
+        if (val === 'true') return true;
+        if (val === 'false') return false;
+        if (!isNaN(val) && val.trim() !== '' && !val.includes('.')) return parseInt(val, 10);
+        if (!isNaN(val) && val.trim() !== '') return parseFloat(val);
+        return val;
+    }
+
+    return root;
+}
+
+
+// Hardcoded SID mapping for key configuration paths
+const SID_MAP = {
+    '/ietf-interfaces:interfaces/interface/enabled': 7002,
+    '/ietf-interfaces:interfaces/interface/mchp-velocitysp-port:eth-port/config/speed': 38102,
+    '/ietf-interfaces:interfaces/interface/ietf-ip:ipv4/address/ip': 8006,
+    '/ietf-interfaces:interfaces/interface/ietf-ip:ipv4/address/prefix-length': 8007,
+};
+
+class VelocityDriveWebController {
+    constructor() {
+        this.term = new Terminal({ theme: { background: 'rgba(255,255,255,0.1)', foreground: '#1f2937' }, fontSize: 12 });
+        this.port = null;
+        this.originalData = null;
+        this.currentData = null;
+        this.init();
+    }
+
+    init() {
+        this.term.open(document.getElementById('terminal-container'));
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        document.getElementById('connectBtn').addEventListener('click', () => this.connect());
+        document.getElementById('disconnectBtn').addEventListener('click', () => this.disconnect());
+        document.getElementById('loadDataBtn').addEventListener('click', () => this.loadData());
+        document.getElementById('applyChangesBtn').addEventListener('click', () => this.applyChanges());
+    }
+
+    async connect() {
+        try {
+            this.port = await navigator.serial.requestPort();
+            await this.port.open({ baudRate: 115200 });
+            this.term.writeln('\x1b[32m[SYSTEM] Connected via Web Serial.\x1b[0m');
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnectBtn').disabled = false;
+            document.getElementById('applyChangesBtn').disabled = false;
+        } catch (e) { this.term.writeln(`\x1b[31m[ERROR] ${e.message}\x1b[0m`); }
+    }
+
+    async disconnect() {
+        if (this.port) {
+            await this.port.close();
+            this.port = null;
+            this.term.writeln('\x1b[33m[SYSTEM] Disconnected.\x1b[0m');
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            document.getElementById('applyChangesBtn').disabled = true;
+        }
+    }
+    
+    loadData() {
+        try {
+            this.originalData = parseYaml(FULL_CONFIG_YAML);
+            this.currentData = JSON.parse(JSON.stringify(this.originalData)); // Deep copy
+            this.renderTreeView(this.currentData, document.getElementById('data-viewer'));
+            this.renderQuickConfig(this.currentData);
+            this.term.writeln('\x1b[32m[SYSTEM] Full configuration parsed and rendered.\x1b[0m');
+        } catch(e) {
+            this.term.writeln(`\x1b[31m[ERROR] Failed to parse YAML: ${e.message}\x1b[0m`);
+            console.error(e);
+        }
+    }
+
+    renderTreeView(obj, parentElement) {
+        parentElement.innerHTML = '';
+        const ul = document.createElement('ul');
+        ul.className = 'tree-view';
+        for (const key in obj) {
+            const li = document.createElement('li');
+            const keySpan = document.createElement('span');
+            keySpan.className = 'key';
+            keySpan.textContent = key;
+            li.appendChild(keySpan);
+
+            if (typeof obj[key] === 'object' && obj[key] !== null) {
+                const toggle = document.createElement('span');
+                toggle.className = 'toggle';
+                toggle.textContent = '▸';
+                li.insertBefore(toggle, keySpan);
+
+                const childContainer = document.createElement('div');
+                childContainer.style.display = 'none';
+                this.renderTreeView(obj[key], childContainer);
+                li.appendChild(childContainer);
+
+                li.querySelector('.key').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isHidden = childContainer.style.display === 'none';
+                    childContainer.style.display = isHidden ? 'block' : 'none';
+                    toggle.textContent = isHidden ? '▾' : '▸';
+                });
+
+            } else {
+                const valueSpan = document.createElement('span');
+                valueSpan.className = 'value';
+                valueSpan.textContent = ` ${obj[key]}`;
+                li.appendChild(valueSpan);
+            }
+            ul.appendChild(li);
+        }
+        parentElement.appendChild(ul);
+    }
+    
+    renderQuickConfig(data) {
+        const editor = document.getElementById('config-editor');
+        editor.innerHTML = '<h4>Quick Config Editor</h4>';
+        
+        const interfaces = data['ietf-interfaces:interfaces'].interface;
+        interfaces.forEach(iface => {
+            const section = document.createElement('div');
+            section.className = 'config-section';
+            section.innerHTML = `<h5>Interface: ${iface.name}</h5>`;
+            
+            this.addConfigControl(section, 'Enabled', `enabled-${iface.name}`, 'select', [true, false], iface.enabled, 
+                                `ietf-interfaces:interfaces.interface[name=${iface.name}].enabled`);
+
+            if(iface['mchp-velocitysp-port:eth-port']) {
+                this.addConfigControl(section, 'Port Speed', `speed-${iface.name}`, 'select', ['1.000', '10.000', '0.100'], iface['mchp-velocitysp-port:eth-port'].config.speed,
+                                    `ietf-interfaces:interfaces.interface[name=${iface.name}].mchp-velocitysp-port:eth-port.config.speed`);
+            }
+
+            if(iface['ietf-ip:ipv4']?.address) {
+                this.addConfigControl(section, 'IP Address', `ip-${iface.name}`, 'text', null, iface['ietf-ip:ipv4'].address[0].ip,
+                                    `ietf-interfaces:interfaces.interface[name=${iface.name}].ietf-ip:ipv4.address[0].ip`);
+                this.addConfigControl(section, 'Prefix Length', `prefix-${iface.name}`, 'number', null, iface['ietf-ip:ipv4'].address[0]['prefix-length'],
+                                    `ietf-interfaces:interfaces.interface[name=${iface.name}].ietf-ip:ipv4.address[0].prefix-length`);
+            }
+            editor.appendChild(section);
+        });
+    }
+
+    addConfigControl(parent, labelText, id, type, options, value, dataPath) {
+        const div = document.createElement('div');
+        div.className = 'input-group';
+        const label = document.createElement('label');
+        label.setAttribute('for', id);
+        label.textContent = labelText;
+        
+        let input;
+        if (type === 'select') {
+            input = document.createElement('select');
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                if (opt.toString() === value.toString()) option.selected = true;
+                input.appendChild(option);
+            });
+        } else {
+            input = document.createElement('input');
+            input.type = type;
+            input.value = value;
+        }
+        input.id = id;
+        input.dataset.path = dataPath;
+        input.addEventListener('change', (e) => this.updateCurrentData(e.target));
+        
+        div.appendChild(label);
+        div.appendChild(input);
+        parent.appendChild(div);
+    }
+    
+    updateCurrentData(element) {
+        let path = element.dataset.path;
+        let value = element.value;
+
+        if (element.tagName === 'SELECT') {
+            if (value === 'true') value = true;
+            else if (value === 'false') value = false;
+        } else if (element.type === 'number') {
+            value = Number(value);
+        }
+
+        let obj = this.currentData;
+        const keys = path.split('.');
+        for (let i = 0; i < keys.length - 1; i++) {
+            const key = keys[i];
+            const match = key.match(/(\w+)\[(\w+)=([^\]]+)\]/);
+            if (match) {
+                const [, arrayName, keyName, keyValue] = match;
+                obj = obj[arrayName].find(item => String(item[keyName]) === String(keyValue));
+            } else {
+                obj = obj[key];
+            }
+        }
+        obj[keys[keys.length - 1]] = value;
+        this.term.writeln(`[UI Change] Path: ${path}, New Value: ${value}`);
+    }
+
+    async applyChanges() {
+        const diff = this.findDifferences(this.originalData, this.currentData);
+        if (Object.keys(diff).length === 0) {
+             this.term.writeln('\x1b[33m[INFO] No changes detected to apply.\x1b[0m');
+             return;
+        }
+
+        this.term.writeln('\x1b[32m[SYSTEM] Generating iPatch request from changes...\x1b[0m');
+        const { cborPayload, textReport } = this.createIPatchPayload(diff);
+        
+        this.term.writeln('\n--- Change Report ---');
+        this.term.writeln(textReport);
+        this.term.writeln('---------------------\n');
+        this.term.writeln('\x1b[36m[CBOR] Generated Payload (hex):\x1b[0m');
+        this.term.writeln(this.bufToHex(cborPayload));
+        
+        if (!this.port) {
+            this.term.writeln(`\x1b[31m[ERROR] Not connected. Please connect to a device first.\x1b[0m`);
+            return;
+        }
+
+        const mup1Frame = this.createMup1Frame(cborPayload);
+        this.term.writeln('\x1b[36m[MUP1] Sending frame to device...\x1b[0m');
+        
+        const writer = this.port.writable.getWriter();
+        await writer.write(mup1Frame);
+        writer.releaseLock();
+        
+        this.term.writeln('\x1b[32m[SUCCESS] iPatch request sent to device!\x1b[0m');
+        // After applying, update original data to prevent re-applying same changes
+        this.originalData = JSON.parse(JSON.stringify(this.currentData));
+    }
+    
+    findDifferences(orig, curr, path = '') {
+        let diff = {};
+        for (const key in curr) {
+            const currentPath = path ? `${path}.${key}` : key;
+            if (orig === undefined || !orig.hasOwnProperty(key)) {
+                diff[currentPath] = curr[key];
+                continue;
+            }
+            if (typeof curr[key] === 'object' && curr[key] !== null && !Array.isArray(curr[key])) {
+                Object.assign(diff, this.findDifferences(orig[key] || {}, curr[key], currentPath));
+            } else if (JSON.stringify(orig[key]) !== JSON.stringify(curr[key])) {
+                 diff[currentPath] = curr[key];
+            }
+        }
+        return diff;
+    }
+
+    createIPatchPayload(diff) {
+        let textReport = '';
+        const cborMap = new Map();
+        
+        for (const path in diff) {
+            const pathParts = path.split(/\[(\w+)=([^\]]+)\]\.?/);
+            let basePath = `/${pathParts[0].replace(/\./g, '/')}`;
+            let keys = [pathParts[2]];
+            let finalPath = `/${pathParts[pathParts.length - 1]}`;
+            
+            let sidPath = `${basePath.replace('ietf-interfaces:interfaces/interface', '/ietf-interfaces:interfaces/interface')}${finalPath}`;
+            const sid = SID_MAP[sidPath];
+
+            if (sid) {
+                const keyCbor = cbor.encode(keys[0]);
+                const valueCbor = cbor.encode(diff[path]);
+                const entry = new Map([[cbor.Encoder.CTAP_IPATCH, [keyCbor, valueCbor]]]);
+                cborMap.set(sid, entry);
+                textReport += `  - Path: ${sidPath}\n    Key: ${keys[0]}, Value: ${diff[path]} -> SID: ${sid}\n`;
+            } else {
+                textReport += `  - Path: ${sidPath}\n    (No SID mapping found, skipping)\n`;
+            }
+        }
+        
+        return { cborPayload: cbor.encode(cborMap), textReport };
+    }
+    
+    createMup1Frame(coapPayload) {
+        // Simplified CoAP header for iPatch
+        const coapHeader = new Uint8Array([
+            0x40, // Ver=1, Type=0 (CON), TKL=0
+            0x07, // Code=0.07 (iPatch)
+            0x12, 0x34 // Message ID
+        ]);
+        const coapOptions = new Uint8Array([ 0xb1, 0x63, 0x11, 0x8e ]); // Uri-Path: "c", Content-Format: 142
+        
+        const payloadWithDelim = new Uint8Array(coapPayload.length + 1);
+        payloadWithDelim[0] = 0xFF; // Payload marker
+        payloadWithDelim.set(coapPayload, 1);
+        
+        const fullCoapFrame = new Uint8Array(coapHeader.length + coapOptions.length + payloadWithDelim.length);
+        fullCoapFrame.set(coapHeader, 0);
+        fullCoapFrame.set(coapOptions, coapHeader.length);
+        fullCoapFrame.set(payloadWithDelim, coapHeader.length + coapOptions.length);
+
+        // MUP1 Framing
+        const type = 'C'.charCodeAt(0);
+        const unescaped = [0x3e, type, ...fullCoapFrame, 0x3c];
+        if (fullCoapFrame.length % 2 === 0) unescaped.push(0x3c);
+        
+        const checksum = this.calculateMup1Checksum(new Uint8Array(unescaped));
+        
+        const escaped = this.escapeMup1Data(fullCoapFrame);
+        
+        const mup1Frame = new Uint8Array(2 + escaped.length + 2 + checksum.length);
+        mup1Frame[0] = 0x3e; // SOF
+        mup1Frame[1] = type;
+        mup1Frame.set(escaped, 2);
+        mup1Frame[2 + escaped.length] = 0x3c; // EOF
+        if(fullCoapFrame.length % 2 === 0) mup1Frame[3 + escaped.length] = 0x3c;
+        mup1Frame.set(checksum, mup1Frame.length - 4);
+        
+        return mup1Frame;
+    }
+    
+    escapeMup1Data(data) {
+        const escaped = [];
+        const escapeChars = [0x3e, 0x3c, 0x5c, 0x00, 0xff];
+        data.forEach(byte => {
+            if (escapeChars.includes(byte)) {
+                escaped.push(0x5c);
+                if (byte === 0x00) escaped.push(0x30);
+                else if (byte === 0xff) escaped.push(0x46);
+                else escaped.push(byte);
+            } else {
+                escaped.push(byte);
+            }
+        });
+        return new Uint8Array(escaped);
+    }
+    
+    calculateMup1Checksum(data) {
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 2) {
+            sum += (data[i] << 8) | (data[i+1] || 0);
+        }
+        sum = (sum >> 16) + (sum & 0xffff);
+        sum += (sum >> 16);
+        sum = (~sum) & 0xffff;
+        const hex = sum.toString(16).padStart(4, '0');
+        return new TextEncoder().encode(hex);
+    }
+
+    bufToHex(buffer) {
+        return [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join(' ');
+    }
+}
+
+new VelocityDriveWebController();
+
+</script>
+</body>
+</html>
