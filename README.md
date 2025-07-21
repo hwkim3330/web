@@ -1,4 +1,3 @@
-
 # KETI & NXP S32G - AI 웹 컨트롤 센터
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
