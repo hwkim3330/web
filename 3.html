@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>S32G Control Center - Network Engineer's Edition</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+<style>
+:root {
+--text-primary: #1d1d1f; --text-secondary: #515154; --text-tertiary: #86868b;
+--bg-glass: rgba(255, 255, 255, 0.65); --border-glass: rgba(255, 255, 255, 0.4);
+--accent-blue: #007aff; --accent-green: #30d158; --accent-yellow: #ffd60a; --accent-red: #ff453a; --accent-purple: #af52de;
+--shadow-color: rgba(60, 64, 67, 0.15); --shadow-color-light: rgba(60, 64, 67, 0.05);
+}
+body, html {
+    height: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    overflow: hidden; color: var(--text-primary);
+    background-color: #f5f5f7;
+    background-image: radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 1) 0px, transparent 50%), radial-gradient(at 97% 21%, hsla(125, 98%, 72%, 1) 0px, transparent 50%), radial-gradient(at 52% 99%, hsla(355, 98%, 76%, 1) 0px, transparent 50%), radial-gradient(at 10% 29%, hsla(256, 96%, 68%, 1) 0px, transparent 50%), radial-gradient(at 97% 96%, hsla(38, 60%, 74%, 1) 0px, transparent 50%), radial-gradient(at 33% 50%, hsla(222, 67%, 73%, 1) 0px, transparent 50%), radial-gradient(at 79% 53%, hsla(343, 68%, 79%, 1) 0px, transparent 50%);
+    background-size: 150% 150%; animation: gradient-animation 18s ease infinite;
+}
+@keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+#page-container { display: flex; height: 100%; padding: 20px; gap: 20px; box-sizing: border-box; }
+.glass-pane { background: var(--bg-glass); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); border: 1px solid var(--border-glass); border-radius: 20px; box-shadow: 0 8px 32px 0 var(--shadow-color); display: flex; flex-direction: column; }
+#terminal-pane { flex: 1.2; min-width: 0; }
+#gui-pane { flex: 1; overflow-y: auto; }
+#controls, .pane-header { padding: 12px 20px; flex-shrink: 0; }
+#controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-glass); }
+.pane-header { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+#terminal-container { flex-grow: 1; padding: 10px; overflow: hidden; border-radius: 0 0 20px 20px; }
+.xterm .xterm-viewport { background-color: transparent !important; }
+button, select, input {
+    background: rgba(255, 255, 255, 0.7); color: var(--text-secondary); border: 1px solid rgba(0, 0, 0, 0.05); padding: 8px 12px;
+    font-size: 14px; cursor: pointer; border-radius: 10px; transition: all 0.2s ease;
+    box-sizing: border-box; display: flex; align-items: center; gap: 6px; font-weight: 500;
+}
+button:hover:not(:disabled), select:hover:not(:disabled) { transform: translateY(-1px); background: white; box-shadow: 0 2px 8px var(--shadow-color-light); }
+button:disabled { background-color: rgba(220,220,220,0.5); color: #aaa; cursor: not-allowed; }
+input[type="text"] { width: 100%; background: rgba(220, 220, 220, 0.4); }
+button i, .gui-section summary i { flex-shrink: 0; }
+.gui-section { margin: 0 20px 15px; background: rgba(255,255,255,0.4); border-radius: 12px; border: 1px solid rgba(0,0,0,0.02); }
+.gui-section summary { list-style: none; display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 600; padding: 12px 15px; cursor: pointer; color: var(--text-primary); }
+.gui-section summary .chevron { transition: transform 0.2s ease; }
+.gui-section[open] > summary .chevron { transform: rotate(90deg); }
+.gui-section > div { padding: 0 15px 15px; }
+.button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.input-group { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.input-group div { display: flex; gap: 8px; align-items: center; }
+.input-group input { flex-grow: 1; }
+.input-group label { font-size: 13px; color: var(--text-secondary); }
+.cmd-btn-group button { background: var(--accent-blue); color: white; border-color: transparent; }
+#connectBtn { background-color: var(--accent-green); color: white; border-color: transparent; }
+#disconnectBtn { background-color: var(--accent-red); color: white; border-color: transparent; }
+</style>
+</head>
+<body>
+  <div id="page-container">
+    <div id="terminal-pane" class="glass-pane">
+        <div id="controls">
+            <button id="connectBtn"><i data-lucide="zap"></i>Connect</button>
+            <button id="disconnectBtn" disabled><i data-lucide="zap-off"></i>Disconnect</button>
+            <select id="baudRateSelect" style="width:auto;"><option value="115200" selected>115200</option><option value="57600">57600</option><option value="9600">9600</option></select>
+            <button id="clearTermBtn"><i data-lucide="trash-2"></i>Clear</button>
+        </div>
+        <div id="terminal-container"></div>
+    </div>
+    
+    <div id="gui-pane" class="glass-pane">
+        <div class="pane-header">S32G Control Center</div>
+        
+        <details class="gui-section" open><summary><span><i data-lucide="log-in"></i>System & Login</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+            <div class="button-grid">
+                <button id="rootLoginBtn"><i data-lucide="user-cog"></i>Login as root</button>
+                <button id="enterBtn"><i data-lucide="corner-down-left"></i>Send Enter</button>
+                <button id="rebootBtn" style="background:var(--accent-yellow); color:var(--text-primary);"><i data-lucide="refresh-cw"></i>Reboot</button>
+                <button id="poweroffBtn" style="background:var(--accent-red); color:white;"><i data-lucide="power-off"></i>Power Off</button>
+            </div>
+        </div></details>
+        
+        <details class="gui-section" open><summary><span><i data-lucide="network"></i>Basic Networking</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ip addr"><i data-lucide="network"></i>IP Addresses</button>
+                <button class="cmd-btn" data-cmd="ifconfig"><i data-lucide="arrow-left-right"></i>ifconfig</button>
+                <button class="cmd-btn" data-cmd="netstat -tuln"><i data-lucide="radio-tower"></i>Listening Ports</button>
+            </div>
+             <div class="input-group">
+                <input type="text" id="pingInput" placeholder="hostname or IP (e.g., 192.168.1.1)">
+                <div class="cmd-btn-group"><button id="pingBtn"><i data-lucide="send"></i>Ping</button></div>
+            </div>
+        </div></details>
+        
+        <details class="gui-section" open><summary><span><i data-lucide="gauge-circle"></i>Advanced Networking: iperf3</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="iperf3 -s"><i data-lucide="server"></i>Start Server</button>
+            </div>
+            <div class="input-group">
+                <label>Client Test:</label>
+                <input type="text" id="iperfServerIp" placeholder="Server IP Address">
+                <div>
+                    <button id="iperfTcpBtn"><i data-lucide="arrow-right"></i>TCP</button>
+                    <button id="iperfUdpBtn"><i data-lucide="arrow-right-left"></i>UDP (10M)</button>
+                    <button id="iperfReverseBtn"><i data-lucide="arrow-left"></i>TCP Reverse</button>
+                </div>
+            </div>
+        </div></details>
+        
+        <details class="gui-section" open><summary><span><i data-lucide="route"></i>Advanced Networking: tc</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+             <div class="button-grid">
+                <button class="cmd-btn" data-cmd="tc qdisc show dev eth0"><i data-lucide="list-tree"></i>Show Rules (eth0)</button>
+                <button class="cmd-btn" data-cmd="tc qdisc add dev eth0 root netem delay 100ms"><i data-lucide="timer"></i>Add 100ms Delay</button>
+                <button class="cmd-btn" data-cmd="tc qdisc add dev eth0 root netem loss 5%"><i data-lucide="shield-x"></i>Add 5% Packet Loss</button>
+                <button class="cmd-btn" data-cmd="tc qdisc add dev eth0 root tbf rate 1mbit burst 32kbit latency 400ms"><i data-lucide="move-horizontal"></i>Limit Rate to 1Mbit</button>
+                <button id="tcDelBtn" style="background:var(--accent-red); color:white;"><i data-lucide="x-circle"></i>Delete All Rules (eth0)</button>
+             </div>
+        </div></details>
+        
+        <details class="gui-section" open><summary><span><i data-lucide="ethernet-port"></i>Ethernet Diagnostics: ethtool</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+             <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ethtool eth0"><i data-lucide="link-2"></i>Link Status</button>
+                <button class="cmd-btn" data-cmd="ethtool -i eth0"><i data-lucide="info"></i>Driver Info</button>
+                <button class="cmd-btn" data-cmd="ethtool -S eth0"><i data-lucide="bar-chart-big"></i>Statistics</button>
+                <button class="cmd-btn" data-cmd="ethtool --show-priv-flags eth0"><i data-lucide="settings-2"></i>Private Flags</button>
+                <button class="cmd-btn" data-cmd="ethtool --show-eee eth0"><i data-lucide="leaf"></i>EEE Status</button>
+                <button class="cmd-btn" data-cmd="ethtool --show-fec eth0"><i data-lucide="shield-check"></i>FEC Status</button>
+             </div>
+        </div></details>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const App = {
+        state: { port: null, isReading: false },
+        ui: {},
+        term: new Terminal({
+            cursorBlink: true, fontFamily: 'Menlo, Monaco, "Courier New", monospace', fontSize: 14,
+            theme: { background: 'transparent', foreground: '#1d1d1f', cursor: '#1d1d1f' }
+        }),
+        fitAddon: new FitAddon.FitAddon(),
+
+        methods: {
+            init() {
+                if (!navigator.serial) {
+                    alert("Web Serial API not supported. Please use a modern browser like Chrome or Edge. On Linux, ensure your user is in the 'dialout' group.");
+                    return;
+                }
+                this.cacheUI();
+                this.term.loadAddon(this.fitAddon);
+                this.term.open(this.ui.terminalContainer);
+                this.fitAddon.fit();
+                new ResizeObserver(() => this.fitAddon.fit()).observe(this.ui.terminalContainer);
+                this.setGuiEnabled(false);
+                this.bindEvents();
+                lucide.createIcons();
+            },
+            
+            cacheUI() {
+                const ids = ['connectBtn', 'disconnectBtn', 'baudRateSelect', 'terminalContainer', 'clearTermBtn', 'rootLoginBtn', 'enterBtn', 'rebootBtn', 'poweroffBtn', 'pingInput', 'pingBtn', 'iperfServerIp', 'iperfTcpBtn', 'iperfUdpBtn', 'iperfReverseBtn', 'tcDelBtn'];
+                ids.forEach(id => this.ui[id] = document.getElementById(id));
+                this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select');
+            },
+
+            setGuiEnabled(enabled) {
+                this.ui.guiControls.forEach(c => c.disabled = !enabled);
+                this.ui.connectBtn.disabled = enabled;
+                this.ui.disconnectBtn.disabled = !enabled;
+                this.ui.baudRateSelect.disabled = enabled;
+            },
+
+            async sendSerial(data) {
+                if (!this.state.port?.writable) return;
+                try {
+                    const writer = this.state.port.writable.getWriter();
+                    await writer.write(new TextEncoder().encode(data));
+                    writer.releaseLock();
+                } catch (e) { this.term.writeln(`\r\n\x1b[31m[E] Write failed: ${e.message}\x1b[0m`); }
+            },
+
+            async sendCommand(cmd, showInTerm = true) {
+                if (this.state.port && cmd) {
+                    this.term.focus();
+                    if(showInTerm) this.term.writeln(`\x1b[34m$ ${cmd}\x1b[0m`);
+                    await this.sendSerial(cmd + '\r');
+                }
+            },
+            
+            async connect() {
+                try {
+                    this.state.port = await navigator.serial.requestPort();
+                    await this.state.port.open({ baudRate: parseInt(this.ui.baudRateSelect.value, 10) });
+                    this.setGuiEnabled(true);
+                    this.state.isReading = true;
+                    this.readLoop();
+                    this.term.writeln('\x1b[32m[SYSTEM] Connected to Serial Port.\x1b[0m');
+                    this.term.focus();
+                    this.state.onDataDisposable = this.term.onData(data => this.sendSerial(data));
+                } catch (error) { this.term.writeln(`\r\n\x1b[31m[E] ${error.message}\x1b[0m`); }
+            },
+            
+            async disconnect() {
+                const portToClose = this.state.port; if (!portToClose) return;
+                this.state.isReading = false;
+                if (this.state.onDataDisposable) this.state.onDataDisposable.dispose();
+                if (portToClose.readable) { try { await portToClose.readable.getReader().cancel(); } catch(e) {} }
+                try { await portToClose.close(); } catch(e) {}
+                if (this.state.port === portToClose) {
+                    this.state.port = null;
+                    this.setGuiEnabled(false);
+                    this.term.writeln('\r\n\x1b[33m[SYSTEM] Disconnected.\x1b[0m');
+                }
+            },
+            
+            async readLoop() {
+                while (this.state.port?.readable && this.state.isReading) {
+                    const reader = this.state.port.readable.getReader();
+                    try {
+                        while (true) {
+                            const { value, done } = await reader.read(); if (done) break;
+                            this.term.write(value);
+                        }
+                    } catch (error) { if (this.state.isReading) this.term.writeln(`\r\n\x1b[31m[E] Read loop failed\x1b[0m`);
+                    } finally { reader.releaseLock(); }
+                }
+            },
+
+            bindEvents() {
+                this.ui.connectBtn.addEventListener('click', () => this.connect());
+                this.ui.disconnectBtn.addEventListener('click', () => this.disconnect());
+                navigator.serial?.addEventListener('disconnect', (e) => { if (e.target === this.state.port) this.disconnect(); });
+                this.ui.clearTermBtn.addEventListener('click', () => this.term.clear());
+
+                document.querySelectorAll('.cmd-btn').forEach(b => b.addEventListener('click', () => this.sendCommand(b.dataset.cmd)));
+
+                // Login & System
+                this.ui.rootLoginBtn.addEventListener('click', () => this.sendCommand('root'));
+                this.ui.enterBtn.addEventListener('click', () => this.sendSerial('\r'));
+                this.ui.rebootBtn.addEventListener('click', () => { if(confirm('REBOOT the device?')) this.sendCommand('reboot'); });
+                this.ui.poweroffBtn.addEventListener('click', () => { if(confirm('POWER OFF the device?')) this.sendCommand('poweroff'); });
+                
+                // Basic Networking
+                this.ui.pingBtn.addEventListener('click', () => { const host = this.ui.pingInput.value.trim(); if(host) this.sendCommand(`ping -c 4 ${host}`); });
+                
+                // Advanced Networking: iperf3
+                this.ui.iperfTcpBtn.addEventListener('click', () => { const ip = this.ui.iperfServerIp.value.trim(); if(ip) this.sendCommand(`iperf3 -c ${ip}`); });
+                this.ui.iperfUdpBtn.addEventListener('click', () => { const ip = this.ui.iperfServerIp.value.trim(); if(ip) this.sendCommand(`iperf3 -c ${ip} -u -b 10M`); });
+                this.ui.iperfReverseBtn.addEventListener('click', () => { const ip = this.ui.iperfServerIp.value.trim(); if(ip) this.sendCommand(`iperf3 -c ${ip} -R`); });
+
+                // Advanced Networking: tc
+                this.ui.tcDelBtn.addEventListener('click', () => { if(confirm('Delete all tc rules on eth0?')) this.sendCommand('tc qdisc del dev eth0 root'); });
+            }
+        }
+    };
+    
+    App.methods.init();
+});
+</script>
+</body>
+</html>
