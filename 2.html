@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>S32G Web Control Center - Glass Edition</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+<style>
+:root {
+--text-primary: #1d1d1f; --text-secondary: #515154; --text-tertiary: #86868b;
+--bg-glass: rgba(255, 255, 255, 0.6); --border-glass: rgba(255, 255, 255, 0.3);
+--accent-blue: #007aff; --accent-green: #30d158; --accent-yellow: #ffd60a; --accent-red: #ff453a;
+--shadow-color: rgba(60, 64, 67, 0.15); --shadow-color-light: rgba(60, 64, 67, 0.05);
+}
+
+/* Aurora Gradient Background */
+body, html {
+    height: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    overflow: hidden; color: var(--text-primary);
+    background-color: #f5f5f7;
+    background-image: radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 1) 0px, transparent 50%),
+                      radial-gradient(at 97% 21%, hsla(125, 98%, 72%, 1) 0px, transparent 50%),
+                      radial-gradient(at 52% 99%, hsla(355, 98%, 76%, 1) 0px, transparent 50%),
+                      radial-gradient(at 10% 29%, hsla(256, 96%, 68%, 1) 0px, transparent 50%),
+                      radial-gradient(at 97% 96%, hsla(38, 60%, 74%, 1) 0px, transparent 50%),
+                      radial-gradient(at 33% 50%, hsla(222, 67%, 73%, 1) 0px, transparent 50%),
+                      radial-gradient(at 79% 53%, hsla(343, 68%, 79%, 1) 0px, transparent 50%);
+    background-size: 150% 150%;
+    animation: gradient-animation 18s ease infinite;
+}
+
+@keyframes gradient-animation {
+    0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; }
+}
+
+#page-container { display: flex; height: 100%; padding: 20px; gap: 20px; box-sizing: border-box; }
+
+.glass-pane {
+    background: var(--bg-glass);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px 0 var(--shadow-color);
+    display: flex; flex-direction: column;
+}
+
+#terminal-pane { flex: 1.2; min-width: 0; }
+#gui-pane { flex: 1; overflow-y: auto; }
+#controls, .pane-header { padding: 12px 20px; flex-shrink: 0; }
+#controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-glass); }
+.pane-header { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+
+#terminal-container { flex-grow: 1; padding: 10px; overflow: hidden; border-radius: 0 0 20px 20px; }
+.xterm .xterm-viewport { background-color: transparent !important; }
+
+button, select, input {
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary); border: 1px solid rgba(0, 0, 0, 0.05); padding: 8px 12px;
+    font-size: 14px; cursor: pointer; border-radius: 10px; transition: all 0.2s ease;
+    box-sizing: border-box; display: flex; align-items: center; gap: 6px; font-weight: 500;
+}
+button:hover:not(:disabled), select:hover:not(:disabled) { transform: translateY(-1px); background: white; box-shadow: 0 2px 8px var(--shadow-color-light); }
+button:disabled { background-color: rgba(220,220,220,0.5); color: #aaa; cursor: not-allowed; }
+input { width: 100%; background: rgba(220, 220, 220, 0.4); }
+button i, .gui-section summary i { flex-shrink: 0; }
+
+.gui-section { margin: 0 20px 15px; background: rgba(255,255,255,0.4); border-radius: 12px; border: 1px solid rgba(0,0,0,0.02); }
+.gui-section summary {
+    list-style: none; display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 600;
+    padding: 12px 15px; cursor: pointer; color: var(--text-primary);
+}
+.gui-section summary .chevron { transition: transform 0.2s ease; }
+.gui-section[open] > summary .chevron { transform: rotate(90deg); }
+.gui-section > div { padding: 0 15px 15px; }
+.button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.input-group { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.input-group div { display: flex; gap: 8px; }
+.input-group input { flex-grow: 1; }
+.input-group button { flex-shrink: 0; width: auto; justify-content: center; }
+
+/* Special Buttons */
+#connectBtn { background-color: var(--accent-green); color: white; border-color: transparent; }
+#disconnectBtn { background-color: var(--accent-red); color: white; border-color: transparent; }
+.cmd-btn-group button { background: var(--accent-blue); color: white; border-color: transparent; }
+</style>
+</head>
+<body>
+  <div id="page-container">
+    <div id="terminal-pane" class="glass-pane">
+        <div id="controls">
+            <button id="connectBtn"><i data-lucide="zap"></i>Connect</button>
+            <button id="disconnectBtn" disabled><i data-lucide="zap-off"></i>Disconnect</button>
+            <select id="baudRateSelect" style="width:auto;">
+                <option value="115200" selected>115200</option><option value="57600">57600</option><option value="9600">9600</option>
+            </select>
+            <button id="clearTermBtn"><i data-lucide="trash-2"></i>Clear</button>
+        </div>
+        <div id="terminal-container"></div>
+    </div>
+    
+    <div id="gui-pane" class="glass-pane">
+        <div class="pane-header">S32G Control Center</div>
+        
+        <details class="gui-section" open><summary><span><i data-lucide="log-in"></i>Login & Control</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+            <div class="input-group">
+                <input type="text" id="userInput" placeholder="Enter username (e.g. root)">
+                <div>
+                    <button id="loginBtn"><i data-lucide="user-check"></i>Login as User</button>
+                    <button id="rootLoginBtn"><i data-lucide="user-cog"></i>Login as root</button>
+                    <button id="enterBtn" title="Send 'Enter' key"><i data-lucide="corner-down-left"></i>Enter</button>
+                </div>
+            </div>
+        </div></details>
+        
+        <details class="gui-section" open><summary><span><i data-lucide="folder"></i>File & Directory</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+            <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ls -lha"><i data-lucide="list"></i>List Files</button>
+                <button class="cmd-btn" data-cmd="pwd"><i data-lucide="locate-fixed"></i>Current Dir</button>
+                <button class="cmd-btn" data-cmd="touch newfile.txt"><i data-lucide="file-plus"></i>New File (touch)</button>
+                <button class="cmd-btn" data-cmd="mkdir new_dir"><i data-lucide="folder-plus"></i>New Dir (mkdir)</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="pathInput" placeholder="/path/to/file_or_dir">
+                <div class="button-grid">
+                    <button id="cdBtn"><i data-lucide="move-right"></i>cd to Path</button>
+                    <button id="catBtn"><i data-lucide="file-text"></i>View File (cat)</button>
+                    <button id="rmBtn"><i data-lucide="trash"></i>Delete (rm)</button>
+                </div>
+            </div>
+            <div class="input-group">
+                <input type="text" id="cpSource" placeholder="source"><input type="text" id="cpDest" placeholder="destination">
+                <div class="cmd-btn-group"><button id="cpBtn"><i data-lucide="copy"></i>Copy (cp)</button></div>
+            </div>
+             <div class="input-group">
+                <input type="text" id="mvSource" placeholder="source"><input type="text" id="mvDest" placeholder="destination">
+                <div class="cmd-btn-group"><button id="mvBtn"><i data-lucide="move"></i>Move (mv)</button></div>
+            </div>
+        </div></details>
+        
+        <details class="gui-section"><summary><span><i data-lucide="shield-check"></i>Permissions</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+            <div class="input-group">
+                <input type="text" id="chmodPerms" placeholder="e.g., 755"><input type="text" id="chmodFile" placeholder="file_or_dir">
+                <div class="cmd-btn-group"><button id="chmodBtn"><i data-lucide="key-round"></i>Change Mode (chmod)</button></div>
+            </div>
+            <div class="input-group">
+                <input type="text" id="chownUser" placeholder="user:group"><input type="text" id="chownFile" placeholder="file_or_dir">
+                <div class="cmd-btn-group"><button id="chownBtn"><i data-lucide="user-round-cog"></i>Change Owner (chown)</button></div>
+            </div>
+        </div></details>
+
+        <details class="gui-section"><summary><span><i data-lucide="cpu"></i>System & Process</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+             <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ps aux"><i data-lucide="list-ordered"></i>Process List</button>
+                <button class="cmd-btn" data-cmd="top -b -n 1"><i data-lucide="activity"></i>Top Processes</button>
+                <button class="cmd-btn" data-cmd="htop"><i data-lucide="bar-chart-3"></i>Htop</button>
+                <button class="cmd-btn" data-cmd="free -h"><i data-lucide="memory-stick"></i>Memory</button>
+                <button class="cmd-btn" data-cmd="df -h"><i data-lucide="hard-drive"></i>Disk Usage</button>
+                <button class="cmd-btn" data-cmd="uname -a"><i data-lucide="server"></i>Kernel Info</button>
+                <button class="cmd-btn" data-cmd="lscpu"><i data-lucide="cpu"></i>CPU Info</button>
+                <button class="cmd-btn" data-cmd="dmesg | tail -n 50"><i data-lucide="notebook-text"></i>Kernel Log</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="pidInput" placeholder="Enter PID to kill">
+                <div class="cmd-btn-group"><button id="killBtn" style="background:var(--accent-red);"><i data-lucide="skull"></i>Kill Process</button></div>
+            </div>
+        </div></details>
+        
+        <details class="gui-section"><summary><span><i data-lucide="network"></i>Networking</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+             <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ip addr"><i data-lucide="network"></i>IP Addresses</button>
+                <button class="cmd-btn" data-cmd="netstat -tuln"><i data-lucide="radio-tower"></i>Listening Ports</button>
+                <button class="cmd-btn" data-cmd="ss -tuln"><i data-lucide="radio"></i>Sockets (ss)</button>
+                <button class="cmd-btn" data-cmd="ifconfig"><i data-lucide="arrow-left-right"></i>ifconfig</button>
+             </div>
+             <div class="input-group">
+                <input type="text" id="pingInput" placeholder="hostname or IP">
+                <div class="cmd-btn-group"><button id="pingBtn"><i data-lucide="send"></i>Ping</button></div>
+            </div>
+        </div></details>
+        
+        <details class="gui-section" open><summary><span><i data-lucide="power"></i>System Control</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+            <div class="button-grid">
+                <button id="rebootBtn" style="background:var(--accent-yellow); color:var(--text-primary);"><i data-lucide="refresh-cw"></i>Reboot</button>
+                <button id="poweroffBtn" style="background:var(--accent-red); color:white;"><i data-lucide="power-off"></i>Power Off</button>
+            </div>
+        </div></details>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const App = {
+        state: { port: null, isReading: false, lastCommand: '' },
+        ui: {},
+        term: new Terminal({
+            cursorBlink: true, fontFamily: 'Menlo, Monaco, "Courier New", monospace', fontSize: 14,
+            theme: { background: 'transparent', foreground: '#1d1d1f', cursor: '#1d1d1f' }
+        }),
+        fitAddon: new FitAddon.FitAddon(),
+
+        methods: {
+            init() {
+                if (!navigator.serial) {
+                    alert("Web Serial API not supported. Please use a modern browser like Chrome or Edge.");
+                    return;
+                }
+                this.cacheUI();
+                this.term.loadAddon(this.fitAddon);
+                this.term.open(this.ui.terminalContainer);
+                this.fitAddon.fit();
+                new ResizeObserver(() => this.fitAddon.fit()).observe(this.ui.terminalContainer);
+                this.setGuiEnabled(false);
+                this.bindEvents();
+                lucide.createIcons(); // Render all icons
+            },
+            
+            cacheUI() {
+                const ids = ['connectBtn', 'disconnectBtn', 'baudRateSelect', 'terminalContainer', 'clearTermBtn', 'userInput', 'loginBtn', 'rootLoginBtn', 'enterBtn', 'pathInput', 'cdBtn', 'catBtn', 'rmBtn', 'cpSource', 'cpDest', 'cpBtn', 'mvSource', 'mvDest', 'mvBtn', 'chmodPerms', 'chmodFile', 'chmodBtn', 'chownUser', 'chownFile', 'chownBtn', 'pidInput', 'killBtn', 'pingInput', 'pingBtn', 'rebootBtn', 'poweroffBtn'];
+                ids.forEach(id => this.ui[id] = document.getElementById(id));
+                this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select');
+            },
+
+            setGuiEnabled(enabled) {
+                this.ui.guiControls.forEach(c => c.disabled = !enabled);
+                this.ui.connectBtn.disabled = enabled;
+                this.ui.disconnectBtn.disabled = !enabled;
+                this.ui.baudRateSelect.disabled = enabled;
+            },
+
+            async sendSerial(data) {
+                if (!this.state.port?.writable) return;
+                try {
+                    const writer = this.state.port.writable.getWriter();
+                    await writer.write(new TextEncoder().encode(data));
+                    writer.releaseLock();
+                } catch (e) {
+                    this.term.writeln(`\r\n\x1b[31m[ERROR] Write failed: ${e.message}\x1b[0m`);
+                }
+            },
+
+            async sendCommand(cmd, showInTerm = true) {
+                if (this.state.port && cmd) {
+                    this.term.focus();
+                    if(showInTerm) this.term.writeln(`\x1b[34m$ ${cmd}\x1b[0m`);
+                    await this.sendSerial(cmd + '\r');
+                    this.state.lastCommand = cmd;
+                }
+            },
+            
+            async connect() {
+                try {
+                    this.state.port = await navigator.serial.requestPort();
+                    await this.state.port.open({ baudRate: parseInt(this.ui.baudRateSelect.value, 10) });
+                    this.setGuiEnabled(true);
+                    this.state.isReading = true;
+                    this.readLoop();
+                    this.term.writeln('\x1b[32m[SYSTEM] Connected to Serial Port.\x1b[0m');
+                    this.term.focus();
+                    this.state.onDataDisposable = this.term.onData(data => this.sendSerial(data));
+                } catch (error) {
+                    this.term.writeln(`\r\n\x1b[31m[ERROR] ${error.message}\x1b[0m`);
+                }
+            },
+            
+            async disconnect() {
+                const portToClose = this.state.port;
+                if (!portToClose) return;
+                this.state.isReading = false;
+                if (this.state.onDataDisposable) this.state.onDataDisposable.dispose();
+                if (portToClose.readable) {
+                    const reader = portToClose.readable.getReader();
+                    try { await reader.cancel(); reader.releaseLock(); } catch(e) {}
+                }
+                try { await portToClose.close(); } catch(e) {}
+                if (this.state.port === portToClose) {
+                    this.state.port = null;
+                    this.setGuiEnabled(false);
+                    this.term.writeln('\r\n\x1b[33m[SYSTEM] Disconnected.\x1b[0m');
+                }
+            },
+            
+            async readLoop() {
+                while (this.state.port?.readable && this.state.isReading) {
+                    const reader = this.state.port.readable.getReader();
+                    try {
+                        while (true) {
+                            const { value, done } = await reader.read();
+                            if (done) { break; }
+                            this.term.write(value);
+                        }
+                    } catch (error) {
+                        if (this.state.isReading) this.term.writeln(`\r\n\x1b[31m[ERROR] Read loop failed: ${error.message}\x1b[0m`);
+                    } finally {
+                        reader.releaseLock();
+                    }
+                }
+            },
+
+            bindEvents() {
+                // Connection
+                this.ui.connectBtn.addEventListener('click', () => this.connect());
+                this.ui.disconnectBtn.addEventListener('click', () => this.disconnect());
+                navigator.serial?.addEventListener('disconnect', (e) => { if (e.target === this.state.port) this.disconnect(); });
+                this.ui.clearTermBtn.addEventListener('click', () => this.term.clear());
+
+                // Simple command buttons
+                document.querySelectorAll('.cmd-btn').forEach(b => b.addEventListener('click', () => this.sendCommand(b.dataset.cmd)));
+
+                // Login
+                this.ui.loginBtn.addEventListener('click', () => { const user = this.ui.userInput.value.trim(); if(user) this.sendCommand(user, false); });
+                this.ui.rootLoginBtn.addEventListener('click', () => { this.ui.userInput.value = 'root'; this.sendCommand('root', false); });
+                this.ui.enterBtn.addEventListener('click', () => this.sendSerial('\r'));
+                
+                // File & Dir
+                this.ui.cdBtn.addEventListener('click', () => { const path = this.ui.pathInput.value.trim(); if(path) this.sendCommand(`cd ${path}`); });
+                this.ui.catBtn.addEventListener('click', () => { const path = this.ui.pathInput.value.trim(); if(path) this.sendCommand(`cat ${path}`); });
+                this.ui.rmBtn.addEventListener('click', () => { const path = this.ui.pathInput.value.trim(); if(path && confirm(`Delete "${path}"?`)) this.sendCommand(`rm -rf ${path}`); });
+                this.ui.cpBtn.addEventListener('click', () => { const s = this.ui.cpSource.value.trim(); const d = this.ui.cpDest.value.trim(); if(s && d) this.sendCommand(`cp ${s} ${d}`); });
+                this.ui.mvBtn.addEventListener('click', () => { const s = this.ui.mvSource.value.trim(); const d = this.ui.mvDest.value.trim(); if(s && d) this.sendCommand(`mv ${s} ${d}`); });
+
+                // Permissions
+                this.ui.chmodBtn.addEventListener('click', () => { const p = this.ui.chmodPerms.value.trim(); const f = this.ui.chmodFile.value.trim(); if(p && f) this.sendCommand(`chmod ${p} ${f}`); });
+                this.ui.chownBtn.addEventListener('click', () => { const u = this.ui.chownUser.value.trim(); const f = this.ui.chownFile.value.trim(); if(u && f) this.sendCommand(`chown ${u} ${f}`); });
+                
+                // System & Network
+                this.ui.killBtn.addEventListener('click', () => { const pid = this.ui.pidInput.value.trim(); if(pid && confirm(`Kill PID ${pid}?`)) this.sendCommand(`kill -9 ${pid}`); });
+                this.ui.pingBtn.addEventListener('click', () => { const host = this.ui.pingInput.value.trim(); if(host) this.sendCommand(`ping -c 4 ${host}`); });
+                
+                // Power
+                this.ui.rebootBtn.addEventListener('click', () => { if(confirm('REBOOT the device?')) this.sendCommand('reboot'); });
+                this.ui.poweroffBtn.addEventListener('click', () => { if(confirm('POWER OFF the device?')) this.sendCommand('poweroff'); });
+            }
+        }
+    };
+    
+    App.methods.init();
+});
+</script>
+</body>
+</html>
