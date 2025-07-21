@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>VelocityDRIVE-SP Web Control Center</title>
+    <script src="https://cdn.jsdelivr.net/npm/cbor-x/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <style>
+        :root {
+            --bg-color: #eaf2f8;
+            --glass-bg: rgba(255, 255, 255, 0.5);
+            --glass-border: rgba(255, 255, 255, 0.8);
+            --pane-bg: rgba(245, 247, 250, 0.7);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        html, body {
+            height: 100%; margin: 0; padding: 0; background-color: var(--bg-color);
+            background-image: linear-gradient(135deg, #a8e0ff 0%, #d8b4fe 100%);
+            color: var(--text-primary); font-family: var(--font-sans); overflow: hidden;
+        }
+        #app-container { display: flex; height: 100%; gap: 10px; padding: 10px; }
+        .pane { background-color: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+        #left-pane { flex: 1.2; }
+        #right-pane { flex: 1; }
+        .pane-header { padding: 12px 20px; border-bottom: 1px solid var(--glass-border); font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .pane-content { padding: 20px; overflow-y: auto; }
+        #controls { padding: 12px; border-bottom: 1px solid var(--glass-border); display: flex; gap: 10px; align-items: center; }
+        button, select {
+            background-color: var(--accent-blue); color: white; border: none; padding: 8px 14px; font-size: 14px;
+            cursor: pointer; border-radius: 8px; transition: all 0.2s ease; font-weight: 500;
+        }
+        button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #terminal-container { flex-grow: 1; padding: 10px; }
+        .tree-view { list-style: none; padding-left: 20px; }
+        .tree-view li { position: relative; }
+        .tree-view .key { color: var(--accent-blue); font-weight: 500; cursor: pointer; }
+        .tree-view .value { color: var(--text-secondary); margin-left: 10px; }
+        .tree-view .toggle { position: absolute; left: -15px; top: 2px; cursor: pointer; }
+        .config-section { margin-bottom: 20px; }
+        .config-section h4 { margin: 0 0 10px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        .input-group { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .input-group label { width: 100px; font-size: 14px; }
+        .input-group input, .input-group select { flex-grow: 1; padding: 6px; border-radius: 6px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="left-pane" class="pane">
+            <div class="pane-header">🔧 Microchip Switch Config</div>
+            <div id="controls">
+                <button id="connectBtn" style="background-color:var(--accent-green)">🔌 Connect</button>
+                <button id="disconnectBtn" disabled>❌ Disconnect</button>
+                <button id="loadDataBtn">📥 Load Full Config</button>
+                <button id="applyChangesBtn" style="background-color:var(--accent-red)" disabled>🚀 Apply Changes</button>
+            </div>
+            <div class="pane-content" id="config-editor">
+                <h4>Quick Config</h4>
+                <!-- Quick config UI will be generated here -->
+            </div>
+        </div>
+        <div id="right-pane" class="pane">
+            <div class="pane-header">📄 Full Data View & Terminal</div>
+            <div class="pane-content" id="data-viewer">
+                <!-- Tree view of full config will be here -->
+            </div>
+            <div id="terminal-container"></div>
+        </div>
+    </div>
+
+<script>
+const HARDCODED_YAML_DATA = `
+---
+ietf-interfaces:interfaces:
+  interface:
+  - name: '1'
+    type: iana-if-type:ethernetCsmacd
+    enabled: true
+    oper-status: down
+    if-index: 1
+    phys-address: 02-06-3F-F5-0E-01
+    ieee802-ethernet-interface:ethernet:
+      speed: '1.000'
+  - name: '2'
+    type: iana-if-type:ethernetCsmacd
+    enabled: true
+    oper-status: down
+    if-index: 2
+    phys-address: 02-06-3F-F5-0E-02
+    ieee802-ethernet-interface:ethernet:
+      speed: '1.000'
+  - name: '3'
+    type: iana-if-type:ethernetCsmacd
+    enabled: true
+    oper-status: down
+    if-index: 3
+    phys-address: 02-06-3F-F5-0E-03
+    ieee802-ethernet-interface:ethernet:
+      speed: '1.000'
+  - name: '4'
+    type: iana-if-type:ethernetCsmacd
+    enabled: true
+    oper-status: down
+    if-index: 4
+    phys-address: 02-06-3F-F5-0E-04
+    ieee802-ethernet-interface:ethernet:
+      speed: '1.000'
+  - name: L3V1
+    type: iana-if-type:l3ipvlan
+    oper-status: down
+    if-index: 10001
+    phys-address: 02-06-3F-F5-0E-00
+    ietf-ip:ipv4:
+      address:
+      - ip: 192.168.1.10
+        prefix-length: 24
+`;
+
+// Simplified YAML to JSON parser for this specific structure
+function pseudoYamlToJson(yaml) {
+    const lines = yaml.trim().split('\n').slice(1); // Skip ---
+    let json = {};
+    let stack = [{ obj: json, indent: -1 }];
+
+    lines.forEach(line => {
+        const indent = line.search(/\S/);
+        const [key, ...valueParts] = line.trim().split(':');
+        let value = valueParts.join(':').trim();
+
+        while (indent <= stack[stack.length - 1].indent) {
+            stack.pop();
+        }
+        
+        const parent = stack[stack.length - 1].obj;
+        const cleanKey = key.replace(/^- /, '').trim();
+
+        if (cleanKey === '') return;
+
+        if (value === '') { // It's an object or an array
+            let newObj;
+            if (line.trim().startsWith('-')) {
+                // It's an array item
+                const arrayKey = stack[stack.length - 1].key;
+                if (!Array.isArray(parent[arrayKey])) {
+                    parent[arrayKey] = [];
+                }
+                newObj = {};
+                parent[arrayKey].push(newObj);
+                stack.push({ obj: newObj, indent: indent, key: null });
+            } else {
+                 newObj = {};
+                 parent[cleanKey] = newObj;
+                 stack.push({ obj: newObj, indent: indent, key: cleanKey });
+            }
+        } else { // It's a key-value pair
+            value = value.replace(/'/g, "");
+            if (!isNaN(value) && value.trim() !== '') {
+                 value = Number(value);
+            } else if (value === 'true') {
+                value = true;
+            } else if (value === 'false') {
+                value = false;
+            }
+            parent[cleanKey] = value;
+        }
+    });
+    return json;
+}
+
+
+class WebControlApp {
+    constructor() {
+        this.term = new Terminal({ theme: { background: 'rgba(255,255,255,0.1)', foreground: '#1f2937' }, fontSize: 12 });
+        this.port = null;
+        this.originalData = null;
+        this.currentData = null;
+        this.init();
+    }
+
+    init() {
+        this.term.open(document.getElementById('terminal-container'));
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        document.getElementById('connectBtn').addEventListener('click', () => this.connect());
+        document.getElementById('disconnectBtn').addEventListener('click', () => this.disconnect());
+        document.getElementById('loadDataBtn').addEventListener('click', () => this.loadData());
+        document.getElementById('applyChangesBtn').addEventListener('click', () => this.applyChanges());
+    }
+
+    async connect() {
+        if (!navigator.serial) {
+            alert('Web Serial API not supported.');
+            return;
+        }
+        try {
+            this.port = await navigator.serial.requestPort();
+            await this.port.open({ baudRate: 115200 });
+            this.term.writeln('\x1b[32m[SYSTEM] Connected via Web Serial.\x1b[0m');
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnectBtn').disabled = false;
+            document.getElementById('applyChangesBtn').disabled = false;
+        } catch (e) {
+            this.term.writeln(`\x1b[31m[ERROR] ${e.message}\x1b[0m`);
+        }
+    }
+
+    async disconnect() {
+        if (this.port) {
+            await this.port.close();
+            this.port = null;
+            this.term.writeln('\x1b[33m[SYSTEM] Disconnected.\x1b[0m');
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            document.getElementById('applyChangesBtn').disabled = true;
+        }
+    }
+    
+    loadData() {
+        this.originalData = pseudoYamlToJson(HARDCODED_YAML_DATA);
+        this.currentData = JSON.parse(JSON.stringify(this.originalData)); // Deep copy
+        
+        this.renderTreeView(this.currentData, document.getElementById('data-viewer'));
+        this.renderQuickConfig(this.currentData);
+        this.term.writeln('\x1b[32m[SYSTEM] Hardcoded configuration loaded into UI.\x1b[0m');
+    }
+
+    renderTreeView(obj, parentElement) {
+        parentElement.innerHTML = '';
+        const ul = document.createElement('ul');
+        ul.className = 'tree-view';
+        for (const key in obj) {
+            const li = document.createElement('li');
+            const keySpan = document.createElement('span');
+            keySpan.className = 'key';
+            keySpan.textContent = key;
+            li.appendChild(keySpan);
+
+            if (typeof obj[key] === 'object' && obj[key] !== null) {
+                const toggle = document.createElement('span');
+                toggle.className = 'toggle';
+                toggle.textContent = '▸ ';
+                li.insertBefore(toggle, keySpan);
+
+                const childUl = document.createElement('ul');
+                childUl.style.display = 'none';
+                this.renderTreeView(obj[key], childUl);
+                li.appendChild(childUl);
+
+                keySpan.addEventListener('click', () => {
+                    const isHidden = childUl.style.display === 'none';
+                    childUl.style.display = isHidden ? 'block' : 'none';
+                    toggle.textContent = isHidden ? '▾ ' : '▸ ';
+                });
+            } else {
+                const valueSpan = document.createElement('span');
+                valueSpan.className = 'value';
+                valueSpan.textContent = obj[key];
+                li.appendChild(valueSpan);
+            }
+            ul.appendChild(li);
+        }
+        parentElement.appendChild(ul);
+    }
+
+    renderQuickConfig(data) {
+        const editor = document.getElementById('config-editor');
+        editor.innerHTML = '<h4>Quick Config</h4>';
+        
+        const interfaces = data['ietf-interfaces:interfaces'].interface;
+        interfaces.forEach(iface => {
+            const section = document.createElement('div');
+            section.className = 'config-section';
+            section.innerHTML = `<h5>Interface: ${iface.name}</h5>`;
+            
+            // Enabled Toggle
+            let group = this.createInputGroup(`enabled-${iface.name}`, 'Enabled', 'select', { options: [true, false], value: iface.enabled });
+            section.appendChild(group);
+
+            // Speed
+            if(iface['ieee802-ethernet-interface:ethernet']) {
+                 group = this.createInputGroup(`speed-${iface.name}`, 'Speed', 'text', { value: iface['ieee802-ethernet-interface:ethernet'].speed });
+                 section.appendChild(group);
+            }
+
+            // IP Address
+            if(iface['ietf-ip:ipv4'] && iface['ietf-ip:ipv4'].address) {
+                group = this.createInputGroup(`ip-${iface.name}`, 'IP Address', 'text', { value: iface['ietf-ip:ipv4'].address[0].ip });
+                section.appendChild(group);
+                group = this.createInputGroup(`prefix-${iface.name}`, 'Prefix', 'number', { value: iface['ietf-ip:ipv4'].address[0]['prefix-length'] });
+                section.appendChild(group);
+            }
+
+            editor.appendChild(section);
+        });
+
+        // Add event listeners to update currentData on change
+        editor.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('change', (e) => this.updateCurrentData(e.target));
+        });
+    }
+
+    createInputGroup(id, labelText, type, config) {
+        const div = document.createElement('div');
+        div.className = 'input-group';
+        const label = document.createElement('label');
+        label.setAttribute('for', id);
+        label.textContent = labelText;
+        
+        let input;
+        if (type === 'select') {
+            input = document.createElement('select');
+            config.options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                if (opt === config.value) option.selected = true;
+                input.appendChild(option);
+            });
+        } else {
+            input = document.createElement('input');
+            input.type = type;
+            input.value = config.value;
+        }
+        input.id = id;
+        input.dataset.path = this.findPath(this.currentData, id); // Store path for easy update
+        div.appendChild(label);
+        div.appendChild(input);
+        return div;
+    }
+
+    findPath(obj, id) {
+        const [field, name] = id.split('-');
+        if (field === 'ip' || field === 'prefix') {
+            return `ietf-interfaces:interfaces.interface[name=${name}].ietf-ip:ipv4.address[0].${field === 'prefix' ? 'prefix-length' : 'ip'}`;
+        }
+        if (field === 'speed') {
+            return `ietf-interfaces:interfaces.interface[name=${name}].ieee802-ethernet-interface:ethernet.speed`;
+        }
+        return `ietf-interfaces:interfaces.interface[name=${name}].${field}`;
+    }
+    
+    updateCurrentData(element) {
+        const path = element.dataset.path;
+        const keys = path.split('.');
+        let value = element.value;
+
+        if (element.type === 'select') {
+            value = (value === 'true');
+        } else if (element.type === 'number') {
+            value = Number(value);
+        }
+
+        let obj = this.currentData;
+        for (let i = 0; i < keys.length - 1; i++) {
+            const key = keys[i];
+            const match = key.match(/(\w+)\[(\w+)=(.+)\]/);
+            if (match) {
+                const arrayName = match[1];
+                const keyName = match[2];
+                const keyValue = match[3];
+                obj = obj[arrayName].find(item => item[keyName] == keyValue);
+            } else {
+                obj = obj[key];
+            }
+        }
+        obj[keys[keys.length - 1]] = value;
+        this.term.writeln(`[CHANGE] Path: ${path}, New Value: ${value}`);
+    }
+
+    applyChanges() {
+        if (!this.originalData || !this.currentData) {
+            this.term.writeln('\x1b[31m[ERROR] Data not loaded. Please load config first.\x1b[0m');
+            return;
+        }
+        const diffs = this.findDifferences(this.originalData, this.currentData);
+        if (Object.keys(diffs).length === 0) {
+             this.term.writeln('\x1b[33m[INFO] No changes to apply.\x1b[0m');
+             return;
+        }
+
+        this.term.writeln('\x1b[32m[SYSTEM] Generating iPatch request from changes...\x1b[0m');
+        const ipatchRequest = this.createIPatchRequest(diffs);
+        
+        this.term.writeln('\n--- Generated iPatch (YAML format) ---');
+        this.term.writeln(this.toPseudoYaml(ipatchRequest));
+        this.term.writeln('-------------------------------------\n');
+        
+        // Here you would implement the logic to convert ipatchRequest to CBOR and send it
+        this.term.writeln('\x1b[36m[TODO] Convert to CBOR and send via Web Serial.\x1b[0m');
+    }
+
+    findDifferences(orig, curr, path = '') {
+        let diffs = {};
+        for (const key in curr) {
+            const currentPath = path ? `${path}.${key}` : key;
+            if (typeof curr[key] === 'object' && curr[key] !== null && !Array.isArray(curr[key])) {
+                Object.assign(diffs, this.findDifferences(orig[key], curr[key], currentPath));
+            } else if (Array.isArray(curr[key])) {
+                 // Simplified: Assuming array items are objects with a 'name' or 'ip' key
+                 curr[key].forEach((item, index) => {
+                     const origItem = orig[key].find(o => o.name === item.name || o.ip === item.ip);
+                     const itemPath = `${currentPath}[${key.slice(0,-1)}Name=${item.name || item.ip}]`
+                     Object.assign(diffs, this.findDifferences(origItem, item, itemPath));
+                 })
+            } else if (orig[key] !== curr[key]) {
+                diffs[currentPath] = curr[key];
+            }
+        }
+        return diffs;
+    }
+
+    createIPatchRequest(diffs) {
+        const request = [];
+        for (const path in diffs) {
+            // This is a simplified transformation from JS object path to YANG XPath
+            let yangPath = path
+                .replace(/\.interface\[interfaceName=([^\]]+)\]/g, "/interface[name='$1']")
+                .replace(/\.address\[addressName=([^\]]+)\]/g, "/address[ip='$1']")
+                .replace(/\./g, '/');
+                
+            yangPath = "/" + yangPath.replace(/ietf-interfaces\/interfaces/, 'ietf-interfaces:interfaces');
+            
+            let entry = {};
+            entry[`? "${yangPath}"`] = diffs[path];
+            request.push(entry);
+        }
+        return request;
+    }
+
+    toPseudoYaml(obj) {
+        let yamlString = '';
+        obj.forEach(item => {
+            const key = Object.keys(item)[0];
+            const value = item[key];
+            yamlString += `- ? ${key}\n  : ${JSON.stringify(value)}\n`;
+        });
+        return yamlString;
+    }
+}
+
+new WebControlApp();
+
+</script>
+</body>
+</html>
