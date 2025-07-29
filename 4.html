@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>S32G Web Control Center - Liquid Glass Edition</title>
+<title>S32G Web Control Center - Professional Edition</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
@@ -10,110 +10,84 @@
 
 <style>
 :root {
---text-primary: #1d1d1f; --text-secondary: #515154; --text-tertiary: #86868b;
---bg-glass: rgba(255, 255, 255, 0.6); --border-glass: rgba(255, 255, 255, 0.3);
---accent-blue: #007aff; --accent-green: #30d158; --accent-yellow: #ffd60a; --accent-red: #ff453a;
---shadow-color: rgba(60, 64, 67, 0.15); --shadow-color-light: rgba(60, 64, 67, 0.05);
+    --bg-base: #1e1e1e; --bg-pane: #252526; --bg-element: #3c3c3c;
+    --border-color: #4a4a4a; --text-primary: #d4d4d4; --text-secondary: #cccccc;
+    --nxp-blue: #0e639c; --nxp-blue-hover: #1579b9;
+    --accent-green: #38a169; --accent-yellow: #d19a66; --accent-red: #e06c75;
 }
 
-body, html {
-    height: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-    overflow: hidden; color: var(--text-primary);
-    background-color: #f5f5f7;
-    background-image: radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 0.2) 0px, transparent 50%),
-                      radial-gradient(at 97% 21%, hsla(125, 98%, 72%, 0.2) 0px, transparent 50%),
-                      radial-gradient(at 52% 99%, hsla(355, 98%, 76%, 0.2) 0px, transparent 50%),
-                      radial-gradient(at 10% 29%, hsla(256, 96%, 68%, 0.2) 0px, transparent 50%),
-                      radial-gradient(at 97% 96%, hsla(38, 60%, 74%, 0.2) 0px, transparent 50%),
-                      radial-gradient(at 33% 50%, hsla(222, 67%, 73%, 0.2) 0px, transparent 50%),
-                      radial-gradient(at 79% 53%, hsla(343, 68%, 79%, 0.2) 0px, transparent 50%);
-    background-size: 150% 150%;
-    animation: gradient-animation 18s ease infinite;
+html, body {
+    height: 100%; margin: 0; padding: 0; background-color: var(--bg-base); color: var(--text-primary);
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif; overflow: hidden;
 }
 
-@keyframes gradient-animation {
-    0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; }
+#page-container { display: flex; height: 100%; }
+#terminal-pane { flex: 1.2; display: flex; flex-direction: column; min-width: 0; }
+#gui-pane { flex: 1; background-color: var(--bg-pane); border-left: 1px solid var(--border-color); overflow-y: auto; padding-bottom: 20px; }
+
+.pane-header, #controls {
+    padding: 10px 20px; background-color: #333; flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+    display: flex; align-items: center; gap: 10px;
 }
+.pane-header { justify-content: space-between; font-size: 16px; font-weight: 600; color: white; }
 
-#page-container { display: flex; height: 100%; padding: 20px; gap: 20px; box-sizing: border-box; }
-
-.glass-pane {
-    background: var(--bg-glass);
-    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--border-glass);
-    border-radius: 20px;
-    box-shadow: 0 8px 32px 0 var(--shadow-color);
-    display: flex; flex-direction: column;
-}
-
-#terminal-pane { flex: 1.2; min-width: 0; }
-#gui-pane { flex: 1; overflow-y: auto; }
-#controls, .pane-header { padding: 12px 20px; flex-shrink: 0; }
-#controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-glass); }
-.pane-header { font-size: 18px; font-weight: 600; color: var(--text-primary); }
-
-#terminal-container { flex-grow: 1; padding: 10px; overflow: hidden; border-radius: 0 0 20px 20px; }
-.xterm .xterm-viewport { background-color: transparent !important; }
+#terminal-container { flex-grow: 1; padding: 10px; overflow: hidden; }
 
 button, select, input {
-    background: rgba(255, 255, 255, 0.7);
-    color: var(--text-secondary); border: 1px solid rgba(0, 0, 0, 0.05); padding: 8px 12px;
-    font-size: 14px; cursor: pointer; border-radius: 10px; transition: all 0.2s ease;
-    box-sizing: border-box; display: flex; align-items: center; gap: 6px; font-weight: 500;
+    background-color: var(--bg-element); color: var(--text-primary); border: 1px solid var(--border-color);
+    padding: 8px 12px; font-size: 14px; cursor: pointer; border-radius: 6px; transition: all 0.2s;
+    box-sizing: border-box; display: flex; align-items: center; gap: 8px;
 }
-button:hover:not(:disabled), select:hover:not(:disabled) { transform: translateY(-1px); background: white; box-shadow: 0 2px 8px var(--shadow-color-light); }
-button:disabled { background-color: rgba(220,220,220,0.5); color: #aaa; cursor: not-allowed; }
-input, select { width: 100%; background: rgba(220, 220, 220, 0.4); }
-button i, .gui-section summary i { flex-shrink: 0; }
+button:hover:not(:disabled) { background-color: var(--nxp-blue); border-color: var(--nxp-blue-hover); }
+button:disabled { background-color: #555; color: #999; cursor: not-allowed; }
+select, input { width: 100%; }
 
-.gui-section { margin: 0 20px 15px; background: rgba(255,255,255,0.4); border-radius: 12px; border: 1px solid rgba(0,0,0,0.02); }
+.gui-section { margin: 15px; border: 1px solid var(--border-color); border-radius: 8px; background-color: var(--bg-base); overflow: hidden; }
 .gui-section summary {
-    list-style: none; display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 600;
-    padding: 12px 15px; cursor: pointer; color: var(--text-primary);
+    list-style: none; display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600;
+    padding: 12px 15px; background-color: #2a2d2e; cursor: pointer; color: #569cd6;
+    border-bottom: 1px solid var(--border-color);
 }
-.gui-section summary .chevron { transition: transform 0.2s ease; }
-.gui-section[open] > summary .chevron { transform: rotate(90deg); }
-.gui-section > div { padding: 0 15px 15px; }
+.gui-section > div { padding: 15px; }
 .button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-.input-group { display: flex; gap: 8px; margin-top: 12px; }
-.input-group input, .input-group select { flex-grow: 1; }
+.input-group { display: flex; gap: 10px; margin-top: 12px; }
+.input-group input { flex-grow: 1; }
 .input-group button { flex-shrink: 0; width: auto; justify-content: center; }
+
+#connectBtn { background-color: var(--accent-green); }
+#disconnectBtn { background-color: var(--accent-red); }
 
 @media (max-width: 1000px) {
     #gui-pane { display: none; }
     #terminal-pane { flex: 1; }
 }
-
-#connectBtn { background-color: var(--accent-green); color: white; border-color: transparent; }
-#disconnectBtn { background-color: var(--accent-red); color: white; border-color: transparent; }
-.tsn-subsection { border-top: 1px solid var(--border-glass); margin-top: 15px; padding-top: 15px; }
-.tsn-subsection h4 { margin: 0 0 15px 0; font-size: 15px; color: var(--text-secondary); }
 </style>
 </head>
 <body>
   <div id="page-container">
-    <div id="terminal-pane" class="glass-pane">
+    <div id="terminal-pane">
         <div id="controls">
             <button id="connectBtn"><i data-lucide="zap"></i>Connect</button>
             <button id="disconnectBtn" disabled><i data-lucide="zap-off"></i>Disconnect</button>
             <select id="baudRateSelect" style="width:auto;">
                 <option value="115200" selected>115200</option><option value="57600">57600</option><option value="9600">9600</option>
             </select>
-            <button id="clearTermBtn"><i data-lucide="trash-2"></i>Clear</button>
+            <button id="clearTermBtn" style="margin-left: auto;"><i data-lucide="trash-2"></i>Clear</button>
         </div>
         <div id="terminal-container"></div>
     </div>
     
-    <div id="gui-pane" class="glass-pane">
+    <div id="gui-pane">
         <div class="pane-header">S32G Control Center</div>
         
-        <details class="gui-section" open><summary><span><i data-lucide="log-in"></i>Quick Start</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+        <details class="gui-section" open><summary><i data-lucide="log-in"></i>Quick Start</summary><div>
             <div class="button-grid">
                 <button id="rootLoginBtn"><i data-lucide="user-cog"></i>Login as root</button>
             </div>
         </div></details>
         
-        <details class="gui-section" open><summary><span><i data-lucide="network"></i>Networking</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+        <details class="gui-section" open><summary><i data-lucide="network"></i>Networking & ethtool</summary><div>
             <div class="button-grid">
                 <button class="cmd-btn" data-cmd="ip -c a"><i data-lucide="network"></i>IP Addresses</button>
                 <button class="cmd-btn" data-cmd="ip -s link"><i data-lucide="bar-chart-2"></i>Link Stats</button>
@@ -127,37 +101,25 @@ button i, .gui-section summary i { flex-shrink: 0; }
                 <input id="ipAddressInput" type="text" placeholder="e.g., 192.168.1.10/24">
                 <button id="setIpBtn">Set IP</button>
             </div>
+             <div class="input-group">
+                <select id="ethtoolParamSelect">
+                    <option value="-T">Timestamping Caps (-T)</option>
+                    <option value="-S">Statistics (-S)</option>
+                </select>
+                <button id="runEthtoolBtn" style="width: auto;">Run Ethtool</button>
+            </div>
         </div></details>
 
-        <details class="gui-section" open><summary><span><i data-lucide="timer"></i>TSN & Ethtool</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
-            <div class="tsn-subsection">
-                <h4>Ethtool</h4>
-                <div class="input-group">
-                    <select id="ethtoolParamSelect">
-                        <option value="-T">Timestamping Caps (-T)</option>
-                        <option value="-S">Statistics (-S)</option>
-                    </select>
-                    <input id="ethtoolIfaceInput" type="text" value="end0" placeholder="Interface">
-                    <button id="runEthtoolBtn" style="width: auto;">Run</button>
-                </div>
-            </div>
-
-            <div class="tsn-subsection">
-                <h4>PTP Control (ptp4l)</h4>
-                <button id="runPtp4lBtn" style="width: 100%;"><i data-lucide="play-circle"></i>Run PTP4L on end0 (Master+Slave)</button>
-            </div>
-            
-            <div class="tsn-subsection">
-                <h4>MQPRIO & TAPRIO (TAS) Examples</h4>
-                <div class="button-grid">
-                    <button id="runMqprioBtn"><i data-lucide="git-merge"></i>MQPRIO Example</button>
-                    <button id="runTaprioBtn"><i data-lucide="calendar-clock"></i>TAPRIO Example</button>
-                </div>
+        <details class="gui-section" open><summary><i data-lucide="timer"></i>Time-Sensitive Networking (TSN)</summary><div>
+            <div class="button-grid">
+                <button id="runPtp4lBtn">PTP4L Sync (end0)</button>
+                <button id="runMqprioBtn">MQPRIO Example (end0)</button>
+                <button id="runTaprioBtn">TAPRIO Example (end0)</button>
             </div>
         </div></details>
         
-        <details class="gui-section" open><summary><span><i data-lucide="bus-front"></i>CAN Bus</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
-             <div class="button-grid">
+        <details class="gui-section" open><summary><i data-lucide="bus-front"></i>CAN Bus</summary><div>
+            <div class="button-grid">
                 <button class="cmd-btn" data-cmd="ip -s link show can0">CAN0 Stats</button>
                 <button class="cmd-btn" data-cmd="ip -s link show can1">CAN1 Stats</button>
             </div>
@@ -168,19 +130,21 @@ button i, .gui-section summary i { flex-shrink: 0; }
             </div>
         </div></details>
 
-        <details class="gui-section" open><summary><span><i data-lucide="cpu"></i>System & Process</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+        <details class="gui-section" open><summary><i data-lucide="cpu"></i>System & Process</summary><div>
              <div class="button-grid">
                 <button class="cmd-btn" data-cmd="ps aux"><i data-lucide="list-ordered"></i>Processes</button>
                 <button class="cmd-btn" data-cmd="top -b -n 1"><i data-lucide="activity"></i>Top</button>
                 <button class="cmd-btn" data-cmd="free -h"><i data-lucide="memory-stick"></i>Memory</button>
                 <button class="cmd-btn" data-cmd="dmesg | tail -n 50"><i data-lucide="notebook-text"></i>dmesg</button>
+                <button class="cmd-btn" data-cmd="df -h"><i data-lucide="hard-drive"></i>Disk Usage</button>
+                <button class="cmd-btn" data-cmd="ls -lha /"><i data-lucide="folder-root"></i>List Root Dir</button>
             </div>
         </div></details>
         
-        <details class="gui-section" open><summary><span><i data-lucide="power-circle"></i>System Control</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+        <details class="gui-section" open><summary><i data-lucide="power-circle"></i>System Control</summary><div>
             <div class="button-grid">
-                <button id="rebootBtn" style="background:var(--accent-yellow); color:var(--text-primary);"><i data-lucide="refresh-cw"></i>Reboot</button>
-                <button id="poweroffBtn" style="background:var(--accent-red); color:white;"><i data-lucide="power-off"></i>Power Off</button>
+                <button id="rebootBtn" style="background:var(--accent-yellow);"><i data-lucide="refresh-cw"></i>Reboot</button>
+                <button id="poweroffBtn" style="background:var(--accent-red);"><i data-lucide="power-off"></i>Power Off</button>
             </div>
         </div></details>
     </div>
@@ -192,8 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
         state: { port: null, isReading: false, onDataDisposable: null },
         ui: {},
         term: new Terminal({
-            cursorBlink: true, fontFamily: 'Menlo, Monaco, "Courier New", monospace', fontSize: 14,
-            theme: { background: 'transparent', foreground: '#1d1d1f', cursor: '#1d1d1f' }
+            cursorBlink: true, fontFamily: 'Consolas, "Courier New", monospace', fontSize: 14,
+            theme: { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#d4d4d4', selectionBackground: '#555' }
         }),
         fitAddon: new FitAddon.FitAddon(),
 
@@ -213,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         cacheUI() {
-            const ids = ['connectBtn', 'disconnectBtn', 'baudRateSelect', 'terminalContainer', 'clearTermBtn', 'rootLoginBtn', 'rebootBtn', 'poweroffBtn', 'netIfaceInput', 'ifaceUpBtn', 'ifaceDownBtn', 'ipAddressInput', 'setIpBtn', 'ethtoolParamSelect', 'ethtoolIfaceInput', 'runEthtoolBtn', 'runPtp4lBtn', 'runMqprioBtn', 'runTaprioBtn', 'canBitrateInput', 'setCan0Btn', 'setCan1Btn'];
+            const ids = ['connectBtn', 'disconnectBtn', 'baudRateSelect', 'terminalContainer', 'clearTermBtn', 'rootLoginBtn', 'rebootBtn', 'poweroffBtn', 'netIfaceInput', 'ifaceUpBtn', 'ifaceDownBtn', 'ipAddressInput', 'setIpBtn', 'ethtoolParamSelect', 'runEthtoolBtn', 'runPtp4lBtn', 'runMqprioBtn', 'runTaprioBtn', 'canBitrateInput', 'setCan0Btn', 'setCan1Btn'];
             ids.forEach(id => this.ui[id] = document.getElementById(id));
             this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select');
             this.ui.cmdBtns = document.querySelectorAll('.cmd-btn');
@@ -238,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         async sendCommand(cmd, showInTerm = true) {
             if (this.state.port && cmd) {
                 this.term.focus();
-                if(showInTerm) this.term.writeln(`\x1b[34m$ ${cmd}\x1b[0m`);
+                if(showInTerm) this.term.writeln(`\x1b[36m$ ${cmd}\x1b[0m`);
                 await this.sendSerial(cmd + '\r');
             }
         },
@@ -275,17 +239,21 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         async readLoop() {
-            while (this.state.port?.readable && this.state.isReading) {
-                const reader = this.state.port.readable.getReader();
-                try {
-                    while (true) {
-                        const { value, done } = await reader.read();
-                        if (done) break;
-                        this.term.write(new TextDecoder().decode(value));
-                    }
-                } catch (error) {
-                    if (this.state.isReading) this.term.writeln(`\r\n\x1b[31m[ERROR] Read loop failed: ${error.message}\x1b[0m`);
-                } finally { reader.releaseLock(); }
+            const textDecoder = new TextDecoderStream();
+            const readableStreamClosed = this.state.port.readable.pipeTo(textDecoder.writable);
+            const reader = textDecoder.readable.getReader();
+            try {
+                while (this.state.isReading) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    this.term.write(value);
+                }
+            } catch (error) {
+                if (this.state.isReading) this.term.writeln(`\r\n\x1b[31m[ERROR] Read loop failed: ${error.message}\x1b[0m`);
+            } finally { 
+                reader.releaseLock(); 
+                await readableStreamClosed.catch(()=>{}); 
+                if(this.state.port) this.disconnect(); 
             }
         },
 
@@ -303,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.ifaceDownBtn.addEventListener('click', () => { const iface = this.ui.netIfaceInput.value.trim(); if(iface) this.sendCommand(`ip link set ${iface} down`); });
             this.ui.setIpBtn.addEventListener('click', () => { const iface = this.ui.netIfaceInput.value.trim(); const ip = this.ui.ipAddressInput.value.trim(); if(iface && ip) this.sendCommand(`ip addr add ${ip} dev ${iface}`); });
             
-            this.ui.runEthtoolBtn.addEventListener('click', () => { const param = this.ui.ethtoolParamSelect.value; const iface = this.ui.ethtoolIfaceInput.value.trim(); if(iface) this.sendCommand(`ethtool ${param} ${iface}`); });
+            this.ui.runEthtoolBtn.addEventListener('click', () => { const param = this.ui.ethtoolParamSelect.value; const iface = this.ui.netIfaceInput.value.trim(); if(iface) this.sendCommand(`ethtool ${param} ${iface}`); });
             this.ui.runPtp4lBtn.addEventListener('click', () => this.sendCommand(`ptp4l -2 -H -m -s -i end0`));
             this.ui.runMqprioBtn.addEventListener('click', () => this.sendCommand(`tc qdisc add dev end0 root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4`));
             this.ui.runTaprioBtn.addEventListener('click', () => this.sendCommand(`tc qdisc add dev end0 root taprio num_tc 5 map 0 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4 base-time 0 sched-entry S 10 50000 sched-entry S 0f 450000 sched-entry S 1f 96 flags 0x2`));
