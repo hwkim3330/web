@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>S32G Web Control Center - Glass Edition</title>
+<title>S32G Web Control Center - Liquid Glass Edition</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
@@ -16,7 +16,6 @@
 --shadow-color: rgba(60, 64, 67, 0.15); --shadow-color-light: rgba(60, 64, 67, 0.05);
 }
 
-/* Aurora Gradient Background */
 body, html {
     height: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
     overflow: hidden; color: var(--text-primary);
@@ -64,7 +63,7 @@ button, select, input {
 }
 button:hover:not(:disabled), select:hover:not(:disabled) { transform: translateY(-1px); background: white; box-shadow: 0 2px 8px var(--shadow-color-light); }
 button:disabled { background-color: rgba(220,220,220,0.5); color: #aaa; cursor: not-allowed; }
-input { width: 100%; background: rgba(220, 220, 220, 0.4); }
+input, select { width: 100%; background: rgba(220, 220, 220, 0.4); }
 button i, .gui-section summary i { flex-shrink: 0; }
 
 .gui-section { margin: 0 20px 15px; background: rgba(255,255,255,0.4); border-radius: 12px; border: 1px solid rgba(0,0,0,0.02); }
@@ -75,30 +74,20 @@ button i, .gui-section summary i { flex-shrink: 0; }
 .gui-section summary .chevron { transition: transform 0.2s ease; }
 .gui-section[open] > summary .chevron { transform: rotate(90deg); }
 .gui-section > div { padding: 0 15px 15px; }
-.button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.input-group { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.input-group div { display: flex; gap: 8px; }
-.input-group input { flex-grow: 1; }
+.button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.input-group { display: flex; gap: 8px; margin-top: 12px; }
+.input-group input, .input-group select { flex-grow: 1; }
 .input-group button { flex-shrink: 0; width: auto; justify-content: center; }
 
-/* Responsive Sidebar */
 @media (max-width: 1000px) {
-    #gui-pane {
-        display: none;
-    }
-    #terminal-pane {
-        flex: 1;
-    }
+    #gui-pane { display: none; }
+    #terminal-pane { flex: 1; }
 }
 
-/* Special Buttons */
 #connectBtn { background-color: var(--accent-green); color: white; border-color: transparent; }
 #disconnectBtn { background-color: var(--accent-red); color: white; border-color: transparent; }
 .tsn-subsection { border-top: 1px solid var(--border-glass); margin-top: 15px; padding-top: 15px; }
 .tsn-subsection h4 { margin: 0 0 15px 0; font-size: 15px; color: var(--text-secondary); }
-.slider-group { display: flex; align-items: center; gap: 10px; }
-.slider-group input[type="range"] { flex-grow: 1; padding: 0; }
-.slider-group input[type="number"] { width: 120px; text-align: right; }
 </style>
 </head>
 <body>
@@ -124,69 +113,67 @@ button i, .gui-section summary i { flex-shrink: 0; }
             </div>
         </div></details>
         
-        <details class="gui-section" open><summary><span><i data-lucide="folder-git-2"></i>File System</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+        <details class="gui-section" open><summary><span><i data-lucide="network"></i>Networking</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
             <div class="button-grid">
-                <button class="cmd-btn" data-cmd="ls -lha"><i data-lucide="list"></i>List Files</button>
-                <button class="cmd-btn" data-cmd="pwd"><i data-lucide="locate-fixed"></i>Current Dir</button>
-                <button class="cmd-btn" data-cmd="df -h"><i data-lucide="hard-drive"></i>Disk Usage</button>
+                <button class="cmd-btn" data-cmd="ip -c a"><i data-lucide="network"></i>IP Addresses</button>
+                <button class="cmd-btn" data-cmd="ip -s link"><i data-lucide="bar-chart-2"></i>Link Stats</button>
+            </div>
+             <div class="input-group">
+                <input id="netIfaceInput" type="text" value="end0" placeholder="Interface">
+                <button id="ifaceUpBtn">Link UP</button>
+                <button id="ifaceDownBtn">Link DOWN</button>
+            </div>
+             <div class="input-group">
+                <input id="ipAddressInput" type="text" placeholder="e.g., 192.168.1.10/24">
+                <button id="setIpBtn">Set IP</button>
             </div>
         </div></details>
-        
-        <details class="gui-section" open><summary><span><i data-lucide="timer"></i>Time-Sensitive Networking</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+
+        <details class="gui-section" open><summary><span><i data-lucide="timer"></i>TSN & Ethtool</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
             <div class="tsn-subsection">
-                <h4>IEEE 1588 PTP Control (ptp4l)</h4>
-                <div class="input-group" style="flex-direction: row;">
-                    <label for="ptpInterface">Interface</label>
-                    <input type="text" id="ptpInterface" value="end0">
+                <h4>Ethtool</h4>
+                <div class="input-group">
+                    <select id="ethtoolParamSelect">
+                        <option value="-T">Timestamping Caps (-T)</option>
+                        <option value="-S">Statistics (-S)</option>
+                    </select>
+                    <input id="ethtoolIfaceInput" type="text" value="end0" placeholder="Interface">
+                    <button id="runEthtoolBtn" style="width: auto;">Run</button>
                 </div>
-                <button id="runPtp4lBtn" style="margin-top: 15px; width: 100%;"><i data-lucide="play-circle"></i>Run PTP4L (Master+Slave, HW Time)</button>
             </div>
 
             <div class="tsn-subsection">
-                <h4>IEEE 802.1Qav CBS (tc qdisc)</h4>
-                <div class="input-group">
-                    <label for="cbsIdleSlope" style="width: 80px; text-align: right;">IdleSlope</label>
-                    <div class="slider-group" style="width:100%"><input type="range" id="cbsIdleSlopeSlider" min="1000" max="1000000" value="67000" step="1000"><input type="number" id="cbsIdleSlope" value="67000" style="width:100px;"></div>
-                </div>
-                <div class="input-group">
-                     <label for="cbsSendSlope" style="width: 80px; text-align: right;">SendSlope</label>
-                    <div class="slider-group"  style="width:100%"><input type="range" id="cbsSendSlopeSlider" min="-1000000" max="-1000" value="-933000" step="1000"><input type="number" id="cbsSendSlope" value="-933000" style="width:100px;"></div>
-                </div>
-                <button id="runCbsBtn" style="margin-top: 15px; width:100%"><i data-lucide="sliders-horizontal"></i>Configure CBS on end0 (Parent 1:2)</button>
+                <h4>PTP Control (ptp4l)</h4>
+                <button id="runPtp4lBtn" style="width: 100%;"><i data-lucide="play-circle"></i>Run PTP4L on end0 (Master+Slave)</button>
             </div>
             
-             <div class="tsn-subsection">
+            <div class="tsn-subsection">
                 <h4>MQPRIO & TAPRIO (TAS) Examples</h4>
                 <div class="button-grid">
                     <button id="runMqprioBtn"><i data-lucide="git-merge"></i>MQPRIO Example</button>
                     <button id="runTaprioBtn"><i data-lucide="calendar-clock"></i>TAPRIO Example</button>
                 </div>
-             </div>
+            </div>
         </div></details>
         
+        <details class="gui-section" open><summary><span><i data-lucide="bus-front"></i>CAN Bus</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
+             <div class="button-grid">
+                <button class="cmd-btn" data-cmd="ip -s link show can0">CAN0 Stats</button>
+                <button class="cmd-btn" data-cmd="ip -s link show can1">CAN1 Stats</button>
+            </div>
+            <div class="input-group">
+                <input id="canBitrateInput" type="text" value="500000" placeholder="Bitrate">
+                <button id="setCan0Btn">Setup CAN0</button>
+                <button id="setCan1Btn">Setup CAN1</button>
+            </div>
+        </div></details>
+
         <details class="gui-section" open><summary><span><i data-lucide="cpu"></i>System & Process</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
              <div class="button-grid">
                 <button class="cmd-btn" data-cmd="ps aux"><i data-lucide="list-ordered"></i>Processes</button>
                 <button class="cmd-btn" data-cmd="top -b -n 1"><i data-lucide="activity"></i>Top</button>
                 <button class="cmd-btn" data-cmd="free -h"><i data-lucide="memory-stick"></i>Memory</button>
                 <button class="cmd-btn" data-cmd="dmesg | tail -n 50"><i data-lucide="notebook-text"></i>dmesg</button>
-            </div>
-            <div class="input-group" style="flex-direction: row; margin-top: 15px;">
-                <input type="text" id="pidInput" placeholder="Enter PID to kill">
-                <button id="killBtn" style="background:var(--accent-red); width: auto;"><i data-lucide="skull"></i>Kill</button>
-            </div>
-        </div></details>
-        
-        <details class="gui-section" open><summary><span><i data-lucide="network"></i>Networking & CAN</span><i class="chevron" data-lucide="chevron-right"></i></summary><div>
-             <div class="button-grid">
-                <button class="cmd-btn" data-cmd="ip -c a"><i data-lucide="network"></i>IP Addr</button>
-                <button class="cmd-btn" data-cmd="ethtool -T end0"><i data-lucide="timer"></i>PTP Caps (end0)</button>
-                <button class="cmd-btn" data-cmd="ip -s link show can0"><i data-lucide="bus-front"></i>CAN0 Stats</button>
-                <button class="cmd-btn" data-cmd="ip -s link show can1"><i data-lucide="bus-front"></i>CAN1 Stats</button>
-             </div>
-             <div class="input-group" style="flex-direction: row; margin-top: 15px;">
-                <input type="text" id="pingInput" placeholder="hostname or IP">
-                <button id="pingBtn" style="width:auto;"><i data-lucide="send"></i>Ping</button>
             </div>
         </div></details>
         
@@ -226,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         cacheUI() {
-            const ids = ['connectBtn', 'disconnectBtn', 'baudRateSelect', 'terminalContainer', 'clearTermBtn', 'rootLoginBtn', 'rebootBtn', 'poweroffBtn', 'ptpInterface', 'runPtp4lBtn', 'cbsIdleSlope', 'cbsIdleSlopeSlider', 'cbsSendSlope', 'cbsSendSlopeSlider', 'runCbsBtn', 'runMqprioBtn', 'runTaprioBtn', 'pidInput', 'killBtn', 'pingInput', 'pingBtn'];
+            const ids = ['connectBtn', 'disconnectBtn', 'baudRateSelect', 'terminalContainer', 'clearTermBtn', 'rootLoginBtn', 'rebootBtn', 'poweroffBtn', 'netIfaceInput', 'ifaceUpBtn', 'ifaceDownBtn', 'ipAddressInput', 'setIpBtn', 'ethtoolParamSelect', 'ethtoolIfaceInput', 'runEthtoolBtn', 'runPtp4lBtn', 'runMqprioBtn', 'runTaprioBtn', 'canBitrateInput', 'setCan0Btn', 'setCan1Btn'];
             ids.forEach(id => this.ui[id] = document.getElementById(id));
             this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select');
             this.ui.cmdBtns = document.querySelectorAll('.cmd-btn');
@@ -311,52 +298,21 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.cmdBtns.forEach(b => b.addEventListener('click', () => this.sendCommand(b.dataset.cmd)));
 
             this.ui.rootLoginBtn.addEventListener('click', () => this.sendCommand('root', false));
-            this.ui.killBtn.addEventListener('click', () => { const pid = this.ui.pidInput.value.trim(); if(pid && confirm(`Kill PID ${pid}?`)) this.sendCommand(`kill -9 ${pid}`); });
-            this.ui.pingBtn.addEventListener('click', () => { const host = this.ui.pingInput.value.trim(); if(host) this.sendCommand(`ping -c 4 ${host}`); });
+            
+            this.ui.ifaceUpBtn.addEventListener('click', () => { const iface = this.ui.netIfaceInput.value.trim(); if(iface) this.sendCommand(`ip link set ${iface} up`); });
+            this.ui.ifaceDownBtn.addEventListener('click', () => { const iface = this.ui.netIfaceInput.value.trim(); if(iface) this.sendCommand(`ip link set ${iface} down`); });
+            this.ui.setIpBtn.addEventListener('click', () => { const iface = this.ui.netIfaceInput.value.trim(); const ip = this.ui.ipAddressInput.value.trim(); if(iface && ip) this.sendCommand(`ip addr add ${ip} dev ${iface}`); });
+            
+            this.ui.runEthtoolBtn.addEventListener('click', () => { const param = this.ui.ethtoolParamSelect.value; const iface = this.ui.ethtoolIfaceInput.value.trim(); if(iface) this.sendCommand(`ethtool ${param} ${iface}`); });
+            this.ui.runPtp4lBtn.addEventListener('click', () => this.sendCommand(`ptp4l -2 -H -m -s -i end0`));
+            this.ui.runMqprioBtn.addEventListener('click', () => this.sendCommand(`tc qdisc add dev end0 root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4`));
+            this.ui.runTaprioBtn.addEventListener('click', () => this.sendCommand(`tc qdisc add dev end0 root taprio num_tc 5 map 0 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4 base-time 0 sched-entry S 10 50000 sched-entry S 0f 450000 sched-entry S 1f 96 flags 0x2`));
+
+            this.ui.setCan0Btn.addEventListener('click', () => { const br = this.ui.canBitrateInput.value.trim(); if(br) this.sendCommand(`ip link set can0 type can bitrate ${br} && ip link set can0 up`); });
+            this.ui.setCan1Btn.addEventListener('click', () => { const br = this.ui.canBitrateInput.value.trim(); if(br) this.sendCommand(`ip link set can1 type can bitrate ${br} && ip link set can1 up`); });
+            
             this.ui.rebootBtn.addEventListener('click', () => { if(confirm('REBOOT the device?')) this.sendCommand('reboot'); });
             this.ui.poweroffBtn.addEventListener('click', () => { if(confirm('POWER OFF the device?')) this.sendCommand('poweroff'); });
-            
-            // TSN builder events
-            this.ui.runPtp4lBtn.addEventListener('click', () => this.runPtp4l());
-            this.ui.runCbsBtn.addEventListener('click', () => this.runCbs());
-            this.ui.runMqprioBtn.addEventListener('click', () => this.runMqprio());
-            this.ui.runTaprioBtn.addEventListener('click', () => this.runTaprio());
-            this.syncSlider('cbsIdleSlopeSlider', 'cbsIdleSlope');
-            this.syncSlider('cbsSendSlopeSlider', 'cbsSendSlope');
-        },
-        
-        syncSlider(sliderId, inputId) {
-            const slider = this.ui[sliderId];
-            const input = this.ui[inputId];
-            slider.addEventListener('input', () => input.value = slider.value);
-            input.addEventListener('input', () => slider.value = input.value);
-        },
-        
-        runPtp4l() {
-            const iface = this.ui.ptpInterface.value.trim();
-            if (!iface) return;
-            // From manual, default is layer 2, hardware timestamp, master/slave mode
-            const cmd = `ptp4l -2 -H -m -s -i ${iface}`;
-            this.sendCommand(cmd);
-        },
-        runCbs() {
-            const iface = 'end0'; // As per manual examples
-            const parent = "1:2"; // As per manual examples
-            const idle = this.ui.cbsIdleSlope.value;
-            const send = this.ui.cbsSendSlope.value;
-            // From manual, hicredit/locredit are fixed, offload is used
-            const cmd = `tc qdisc replace dev ${iface} parent ${parent} cbs idleslope ${idle} sendslope ${send} hicredit 2147483647 locredit -2147483648 offload 1`;
-            this.sendCommand(cmd);
-        },
-        runMqprio() {
-            const iface = 'end0';
-            const cmd = `tc qdisc add dev ${iface} root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4`;
-            this.sendCommand(cmd);
-        },
-        runTaprio() {
-            const iface = 'end0';
-            const cmd = `tc qdisc add dev ${iface} root taprio num_tc 5 map 0 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4 base-time 0 sched-entry S 10 50000 sched-entry S 0f 450000 sched-entry S 1f 96 flags 0x2`;
-            this.sendCommand(cmd);
         }
     };
     
