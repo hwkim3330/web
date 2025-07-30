@@ -47,7 +47,6 @@
         <div id="terminal-container"></div>
     </div>
     <div id="gui-pane">
-        <!-- GUI sections from the previous correct version -->
         <div class="gui-section"><h3>System & Process</h3><div class="content button-grid"><button class="cmd-btn" data-cmd="ps aux">Processes</button><button class="cmd-btn" data-cmd="top -b -n 1">Top</button><button class="cmd-btn" data-cmd="free -h">Memory</button><button class="cmd-btn" data-cmd="df -h">Disk</button><button class="cmd-btn" data-cmd="ls -lha /">List Root Dir</button><button class="cmd-btn" data-cmd="dmesg | tail -n 50">dmesg</button></div><div class="content"><div class="input-group"><label>Kill PID:</label><input id="killPidInput" placeholder="PID"><button id="killBtn">Kill</button></div></div></div>
         <div class="gui-section"><h3>Network Interface & Routing</h3><div class="content button-grid"><button class="cmd-btn" data-cmd="ip -c a">IP Addresses</button><button class="cmd-btn" data-cmd="ifconfig">ifconfig</button><button class="cmd-btn" data-cmd="ip route">Routing Table</button><button class="cmd-btn" data-cmd="brctl show">Show Bridges</button><button class="cmd-btn" data-cmd="iptables -L -n -v">List iptables</button></div></div>
         <div class="gui-section"><h3>TSN & Ethtool</h3><div class="content"><div class="input-group"><label>Ethtool:</label><input id="ethtoolIfaceInput" type="text" value="end0"><select id="ethtoolParamSelect"><option value="-T">Timestamping</option><option value="-S">Statistics</option><option value="-k">Features</option><option value="-i">Driver Info</option><option value="-g">Ring Params</option></select><button id="runEthtoolBtn">Run</button></div><div class="input-group"><label>PTP4L:</label><input id="ptp4lIfaceInput" type="text" value="end0"><button id="runPtp4lBtn">Run PTP</button></div><div class="input-group"><label>TC Qdisc:</label><input id="tcIfaceInput" type="text" value="end0"><select id="tcActionSelect"><option>add</option><option>replace</option><option>del</option></select><select id="tcQdiscSelect"><option>mqprio</option><option>cbs</option><option>taprio</option></select><button id="runTcBtn">Run TC</button></div></div></div>
@@ -61,24 +60,11 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const App = {
-        state: {
-            port: null,
-            reader: null,
-            writer: null,
-            isReading: false,
-            onDataDisposable: null,
-            fileDownloadInProgress: false,
-            fileDownloadBuffer: '',
-        },
+        state: { port: null, reader: null, writer: null, isReading: false, onDataDisposable: null, fileDownloadInProgress: false, fileDownloadBuffer: '', },
         ui: {},
-        term: new Terminal({
-            cursorBlink: true, fontFamily: 'monospace', fontSize: 14,
-            theme: { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#d4d4d4', selectionBackground: 'rgba(255, 255, 255, 0.2)' }
-        }),
+        term: new Terminal({ cursorBlink: true, fontFamily: 'monospace', fontSize: 14, theme: { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#d4d4d4', selectionBackground: 'rgba(255, 255, 255, 0.2)' } }),
         fitAddon: new FitAddon.FitAddon(),
 
-        // --- METHODS ---
-        
         init() {
             if (!navigator.serial) {
                 alert("Web Serial API is not supported. Please use a modern browser like Chrome or Edge.");
@@ -92,7 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         cacheUI() {
             const ids = [
-                'connectBtn', 'disconnectBtn', 'baudRateSelect', 'rootLoginBtn', 'clearTermBtn', 'terminalContainer',
+                'connectBtn', 'disconnectBtn', 'baudRateSelect', 'rootLoginBtn', 'clearTermBtn', 
+                'terminal-container', // *** CRITICAL FIX: Changed from camelCase to kebab-case to match HTML ID ***
                 'ethtoolParamSelect', 'ethtoolIfaceInput', 'runEthtoolBtn', 'tcpdumpInput', 'runTcpdumpBtn',
                 'ptp4lIfaceInput', 'runPtp4lBtn', 'tcIfaceInput', 'tcActionSelect', 'tcQdiscSelect', 'runTcBtn',
                 'iperfClientInput', 'runIperfClientBtn',
@@ -101,16 +88,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 'fileInput', 'remotePathInput', 'uploadFileBtn', 'downloadPathInput', 'downloadFileBtn', 'status',
                 'rebootBtn', 'poweroffBtn'
             ];
-            ids.forEach(id => this.ui[id] = document.getElementById(id));
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) console.error(`UI element not found: #${id}`); // For easier debugging
+                // Use a JS-friendly key even if the ID has hyphens
+                const key = id.replace(/-/g, ''); 
+                this.ui[key] = el;
+            });
             this.ui.cmdBtns = document.querySelectorAll('.cmd-btn');
             this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select, #rootLoginBtn');
         },
 
         setupTerminal() {
             this.term.loadAddon(this.fitAddon);
-            this.term.open(this.ui.terminalContainer);
+            // Now this.ui.terminalcontainer is correctly populated
+            this.term.open(this.ui.terminalcontainer);
             this.fitAddon.fit();
-            new ResizeObserver(() => this.fitAddon.fit()).observe(this.ui.terminalContainer);
+            new ResizeObserver(() => this.fitAddon.fit()).observe(this.ui.terminalcontainer);
         },
 
         setGuiEnabled(enabled) {
@@ -123,10 +117,10 @@ document.addEventListener('DOMContentLoaded', () => {
         async sendSerial(data) {
             if (!this.state.port?.writable) return;
             try {
-                this.state.writer = this.state.port.writable.getWriter();
-                await this.state.writer.write(new TextEncoder().encode(data));
+                const writer = this.state.port.writable.getWriter();
+                await writer.write(new TextEncoder().encode(data));
+                writer.releaseLock();
             } catch (e) { this.term.writeln(`\r\n\x1b[31m[ERROR] Write failed: ${e.message}\x1b[0m`); }
-            finally { if (this.state.writer) this.state.writer.releaseLock(); }
         },
 
         async sendCommand(cmd, showInTerm = true) {
@@ -137,26 +131,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        // --- STABLE CONNECTION LOGIC ---
-        
         async connect() {
             if (this.state.port) return;
             try {
                 this.state.port = await navigator.serial.requestPort();
                 await this.state.port.open({ baudRate: parseInt(this.ui.baudRateSelect.value, 10) });
-                
                 this.setGuiEnabled(true);
                 this.state.isReading = true;
-                this.readLoop(); // Start the robust read loop
-                
+                this.readLoop();
                 this.term.writeln('\x1b[32m[SYSTEM] Connected.\x1b[0m');
                 this.term.focus();
-                
-                // This is crucial for typing in the terminal to work
                 this.state.onDataDisposable = this.term.onData(data => {
-                    if (!this.state.fileDownloadInProgress) {
-                        this.sendSerial(data);
-                    }
+                    if (!this.state.fileDownloadInProgress) { this.sendSerial(data); }
                 });
             } catch (error) {
                 this.term.writeln(`\r\n\x1b[31m[ERROR] ${error.message}\x1b[0m`);
@@ -165,90 +151,47 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         async disconnect() {
-            const portToClose = this.state.port;
-            if (!portToClose) return;
-
-            this.state.isReading = false; // Signal the readLoop to stop trying to reconnect
-            
-            if (this.state.onDataDisposable) {
-                this.state.onDataDisposable.dispose();
-                this.state.onDataDisposable = null;
-            }
-            
-            // This will cause the read() promise in the loop to finish with { value: undefined, done: true }
-            if (this.state.reader) {
-                try { await this.state.reader.cancel(); } catch (e) { /* Ignore cancellation errors */ }
-            }
-            
-            // The writer doesn't need explicit closing here, as port.close() handles it.
-            
-            // This is the final step
-            try { await portToClose.close(); } catch (e) { /* Ignore errors if port is already gone */ }
-            
-            // Only update UI if we are sure we are the ones who disconnected
+            const portToClose = this.state.port; if (!portToClose) return;
+            this.state.isReading = false;
+            if (this.state.onDataDisposable) { this.state.onDataDisposable.dispose(); this.state.onDataDisposable = null; }
+            if (this.state.reader) { try { await this.state.reader.cancel(); } catch (e) { /* Ignore */ } }
+            try { await portToClose.close(); } catch (e) { /* Ignore */ }
             if (this.state.port === portToClose) {
-                this.state.port = null;
-                this.state.reader = null;
-                this.setGuiEnabled(false);
+                this.state.port = null; this.state.reader = null; this.setGuiEnabled(false);
                 this.term.writeln('\r\n\x1b[33m[SYSTEM] Disconnected.\x1b[0m');
             }
         },
         
         async readLoop() {
-            const textDecoder = new TextDecoderStream();
-            // This promise will resolve when the underlying readable stream is closed.
-            const readableStreamClosed = this.state.port.readable.pipeTo(textDecoder.writable);
-            this.state.reader = textDecoder.readable.getReader();
-
-            try {
-                while (true) {
-                    const { value, done } = await this.state.reader.read();
-                    if (done) {
-                        break; // The reader has been cancelled, exit the loop.
+            while (this.state.port?.readable && this.state.isReading) {
+                const textDecoder = new TextDecoder();
+                this.state.reader = this.state.port.readable.getReader();
+                try {
+                    while (true) {
+                        const { value, done } = await this.state.reader.read();
+                        if (done) { this.state.reader.releaseLock(); break; }
+                        const decodedChunk = textDecoder.decode(value, { stream: true });
+                        if (this.state.fileDownloadInProgress) { this.handleFileDownloadChunk(decodedChunk); } 
+                        else { this.term.write(decodedChunk); }
                     }
-                    
-                    // Handle incoming data
-                    if (this.state.fileDownloadInProgress) {
-                        this.handleFileDownloadChunk(value);
-                    } else {
-                        this.term.write(value);
-                    }
-                }
-            } catch (error) {
-                // This will catch hardware errors, e.g., device unplugged.
-                if (error.name !== 'AbortError') {
-                    this.term.writeln(`\r\n\x1b[31m[ERROR] Read loop failed: ${error.message}\x1b[0m`);
-                }
-            } finally {
-                this.state.reader.releaseLock();
-                // When the loop ends, ensure the whole connection is terminated cleanly.
-                // This handles cases where the device is unplugged.
-                await readableStreamClosed.catch(() => {});
-                if (this.state.isReading) { // If we weren't manually disconnecting
-                    await this.disconnect();
-                }
+                } catch (error) { if (this.state.isReading) { this.term.writeln(`\r\n\x1b[31m[ERROR] Read loop failed: ${error.message}\x1b[0m`); } }
             }
         },
 
-        // --- Feature Implementations (File Transfer, etc.) ---
-
+        // --- All other feature methods (file transfer, etc.) remain unchanged ---
         handleFileUpload() {
             const file = this.ui.fileInput.files[0];
             const remotePath = this.ui.remotePathInput.value.trim();
-            if (!file || !remotePath) {
-                this.ui.status.textContent = "Select file and enter destination path.";
-                return;
-            }
+            if (!file || !remotePath) { this.ui.status.textContent = "Select file and enter destination path."; return; }
             const reader = new FileReader();
             this.ui.status.textContent = `Reading ${file.name}...`;
             this.ui.uploadFileBtn.disabled = true;
             reader.onload = (e) => {
-                this.ui.status.textContent = `Encoding...`;
                 const base64Content = e.target.result.split(',')[1];
                 const cmd = `echo '${base64Content}' | base64 -d > ${remotePath}`;
                 this.ui.status.textContent = `Uploading to ${remotePath}...`;
                 this.sendCommand(cmd, false).then(() => {
-                    this.term.writeln(`\r\n\x1b[32m[SYSTEM] File upload command for ${remotePath} sent.\x1b[0m`);
+                    this.term.writeln(`\r\n\x1b[32m[SYSTEM] Upload command sent.\x1b[0m`);
                     this.ui.status.textContent = 'Upload initiated.';
                 });
             };
@@ -256,36 +199,32 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onerror = (err) => { this.ui.status.textContent = `Error reading file: ${err}`; };
             reader.readAsDataURL(file);
         },
-        
         handleFileDownload() {
             const path = this.ui.downloadPathInput.value.trim();
             if (!path) { this.ui.status.textContent = 'Enter a file path to download.'; return; }
-            if (this.state.fileDownloadInProgress) { this.ui.status.textContent = 'Another download is already in progress.'; return; }
+            if (this.state.fileDownloadInProgress) { this.ui.status.textContent = 'Download already in progress.'; return; }
             this.state.fileDownloadInProgress = true;
             this.state.fileDownloadBuffer = '';
             this.ui.status.textContent = `Requesting ${path}...`;
             this.sendCommand(`if [ -f "${path}" ]; then cat "${path}" | base64; echo; fi; echo "DOWNLOAD_END"`, false);
         },
-
         handleFileDownloadChunk(chunk) {
             this.state.fileDownloadBuffer += chunk;
             const endMarker = 'DOWNLOAD_END';
             if (this.state.fileDownloadBuffer.includes(endMarker)) {
                 const fileData = this.state.fileDownloadBuffer.substring(0, this.state.fileDownloadBuffer.indexOf(endMarker)).trim();
                 this.state.fileDownloadInProgress = false;
+                this.state.fileDownloadBuffer = '';
                 if (fileData.length === 0) {
-                     this.term.writeln('\r\n\x1b[33m[SYSTEM] Download failed. File may not exist or is empty.\x1b[0m');
-                     this.ui.status.textContent = 'Download failed (file not found?).';
-                     this.state.fileDownloadBuffer = '';
+                     this.term.writeln('\r\n\x1b[33m[SYSTEM] Download failed (file not found or empty).\x1b[0m');
+                     this.ui.status.textContent = 'Download failed.';
                      return;
                 }
-                this.term.writeln('\r\n\x1b[32m[SYSTEM] Base64 data received. Decoding...\x1b[0m');
-                this.ui.status.textContent = 'Base64 data received. Decoding...';
+                this.term.writeln('\r\n\x1b[32m[SYSTEM] Data received. Decoding...\x1b[0m');
+                this.ui.status.textContent = 'Decoding...';
                 this.saveDownloadedFile(fileData);
-                this.state.fileDownloadBuffer = '';
             }
         },
-
         saveDownloadedFile(base64Data) {
             try {
                 const byteCharacters = atob(base64Data);
@@ -296,18 +235,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.href = URL.createObjectURL(blob);
                 const filename = this.ui.downloadPathInput.value.split('/').pop() || 'downloaded_file';
                 link.download = filename;
-                document.body.appendChild(link);
                 link.click();
-                document.body.removeChild(link);
+                link.remove();
                 this.term.writeln(`\x1b[32m[SYSTEM] File "${filename}" downloaded.\x1b[0m`);
                 this.ui.status.textContent = `File "${filename}" downloaded.`;
             } catch (e) { 
-                this.term.writeln(`\x1b[31m[ERROR] Failed to decode or save file: ${e.message}\x1b[0m`);
+                this.term.writeln(`\x1b[31m[ERROR] Decode/save failed: ${e.message}\x1b[0m`);
                 this.ui.status.textContent = 'Error: Failed to decode file.';
             }
         },
 
         bindEvents() {
+            // Use the JS-friendly keys for UI elements
             this.ui.connectBtn.addEventListener('click', () => this.connect());
             this.ui.disconnectBtn.addEventListener('click', () => this.disconnect());
             this.ui.clearTermBtn.addEventListener('click', () => this.term.clear());
