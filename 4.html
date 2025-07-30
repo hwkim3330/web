@@ -1,464 +1,397 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>S32G Ultimate Web Control Center</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
-<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
-<style>
-:root {
---bg-deep-dark: #1e1e1e; --bg-dark: #252526; --bg-medium: #333; --border-color: #4a4a4a;
---text-light: #d4d4d4; --text-medium: #cccccc; --nxp-blue: #0e639c; --nxp-blue-hover: #1579b9;
---ai-purple: #8a63d2; --ai-purple-hover: #9b78e3; --keti-blue: #004b8d;
---color-green: #38a169; --color-yellow: #d19a66; --color-red: #e06c75;
-}
-html, body {
-height: 100%; margin: 0; padding: 0; background-color: var(--bg-deep-dark); color: var(--text-light);
-font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif; overflow: hidden;
-}
-#page-container { display: flex; height: 100%; }
-#terminal-pane { flex: 1.2; display: flex; flex-direction: column; min-width: 0; }
-#gui-pane { flex: 1; background-color: var(--bg-dark); border-left: 1px solid var(--border-color); overflow-y: auto; padding-bottom: 20px; }
-.pane-header {
-padding: 10px 20px; background-color: var(--keti-blue); flex-shrink: 0;
-border-bottom: 1px solid var(--border-color); font-size: 16px; font-weight: 600;
-display: flex; align-items: center; justify-content: space-between; color: white;
-}
-.pane-header .logo { height: 28px; vertical-align: middle; margin-right: 12px; }
-.pane-header .header-controls button { font-size: 12px; padding: 4px 8px; width: auto; background-color: var(--nxp-blue); }
-#terminal-container { flex-grow: 1; padding: 0 10px 10px 10px; overflow: hidden; }
-.gui-section { margin: 0 15px 10px; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--bg-deep-dark); overflow: hidden; }
-.gui-section summary {
-list-style: none; display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600;
-padding: 12px 15px; background-color: #2a2d2e; cursor: pointer; color: #569cd6;
-border-bottom: 1px solid var(--border-color);
-}
-.gui-section[open] > summary { border-bottom: 1px solid var(--border-color); }
-.gui-section > div { padding: 15px; }
-.button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-button, select, input {
-background-color: var(--nxp-blue); color: white; border: none; padding: 10px;
-font-size: 14px; cursor: pointer; border-radius: 4px; transition: all 0.2s;
-box-sizing: border-box; width: 100%; text-align: left; display: flex; align-items: center; gap: 8px;
-}
-button:hover:not(:disabled) { background-color: var(--nxp-blue-hover); transform: translateY(-1px); }
-button:disabled, input:disabled, select:disabled { background-color: #555; color: #999; cursor: not-allowed; transform: none; }
-button.busy { cursor: progress; opacity: 0.7; }
-.input-group { display: flex; gap: 10px; margin-bottom: 12px; align-items: center;}
-.input-group:last-child { margin-bottom: 0; }
-.input-group label { white-space: nowrap; font-size: 14px; }
-.input-group input, .input-group select { flex-grow: 1; background-color: #3c3c3c; border: 1px solid #555; padding: 10px; }
-.input-group button { flex-shrink: 0; width: auto; justify-content: center; }
-#controls { display: flex; align-items: center; padding: 10px 20px; background-color: var(--bg-medium); flex-wrap: wrap; gap: 10px; }
-.status-text { margin-top: 10px; font-size: 14px; color: var(--color-yellow); }
-</style>
+    <meta charset="UTF-8">
+    <title>S32G Functional Web Control Center</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <style>
+        /* Basic Layout & Theme */
+        :root { --bg: #1e1e1e; --bg-panel: #252526; --border: #444; --text: #d4d4d4; --btn: #3c3c3c; --btn-hover: #4c4c4c; }
+        body, html { height: 100%; margin: 0; padding: 0; background-color: var(--bg); color: var(--text); font-family: sans-serif; font-size: 14px; overflow: hidden; }
+
+        /* Main container */
+        #page-container { display: flex; height: 100vh; }
+        #terminal-pane { flex: 1.5; min-width: 0; display: flex; flex-direction: column; }
+        #gui-pane { flex: 1; background-color: var(--bg-panel); border-left: 1px solid var(--border); overflow-y: auto; padding: 10px; }
+
+        /* Top controls */
+        #controls { padding: 8px 15px; background-color: #2D2D2D; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); }
+        #terminal-container { flex-grow: 1; padding: 5px; }
+
+        /* GUI Panel Styling */
+        .gui-section { margin-bottom: 15px; border: 1px solid var(--border); border-radius: 4px; }
+        .gui-section h3 { background-color: #333; color: #8ab4f8; padding: 8px 10px; margin: 0; font-size: 1em; border-bottom: 1px solid var(--border); }
+        .gui-section .content { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+        .input-group { display: flex; gap: 8px; align-items: center; }
+
+        /* General Controls (Buttons, Inputs) */
+        button, select, input { width: 100%; background-color: var(--btn); color: var(--text); border: 1px solid #555; padding: 8px 10px; border-radius: 4px; font-family: inherit; font-size: 0.9em; box-sizing: border-box; }
+        button { cursor: pointer; text-align: center; }
+        button:hover:not(:disabled) { background-color: var(--btn-hover); }
+        button:disabled { background-color: #2a2a2a; color: #777; cursor: not-allowed; }
+        input[type="file"] { padding: 4px; }
+        label { white-space: nowrap; font-size: 0.9em; }
+        select { flex-shrink: 0; }
+        #controls button, #controls select { width: auto; }
+        #status { margin-top: 5px; font-size: 0.9em; color: #d19a66; min-height: 1.2em; }
+        
+        /* Responsive: Hide GUI panel on narrow screens */
+        @media (max-width: 1100px) {
+            #gui-pane { display: none; }
+            #terminal-pane { flex: 1; /* Take full width */ }
+        }
+    </style>
 </head>
 <body>
-  <div id="page-container">
+<div id="page-container">
     <div id="terminal-pane">
         <div id="controls">
-            <button id="connectBtn" style="width:auto; background-color: var(--color-green);">🔌 연결</button>
-            <button id="disconnectBtn" style="width:auto;" disabled>❌ 연결 해제</button>
-            <select id="baudRateSelect" style="width:auto;">
-                <option value="115200" selected>115200</option><option value="57600">57600</option><option value="9600">9600</option>
-            </select>
-            <button id="clearTermBtn" style="width:auto;">🧹 터미널 지우기</button>
+            <button id="connectBtn" style="background-color: #34a853; color: white;">Connect</button>
+            <button id="disconnectBtn" disabled style="background-color: #ea4335; color: white;">Disconnect</button>
+            <select id="baudRateSelect"><option value="115200">115200</option><option value="9600">9600</option></select>
+            <button id="rootLoginBtn" disabled>Login as root</button>
+            <button id="clearTermBtn" style="margin-left: auto;">Clear Terminal</button>
         </div>
         <div id="terminal-container"></div>
     </div>
     <div id="gui-pane">
-        <div class="pane-header">
-            <div>
-                <img src="https://github.com/user-attachments/assets/eaa36443-81b3-41ab-995a-faea06c5f5af" class="logo" alt="KETI & NXP Logo">
-                <span>S32G Ultimate Control Center</span>
+        <div class="gui-section">
+            <h3>System & Process</h3>
+            <div class="content button-grid">
+                <button class="cmd-btn" data-cmd="ps aux">Processes</button>
+                <button class="cmd-btn" data-cmd="top -b -n 1">Top</button>
+                <button class="cmd-btn" data-cmd="free -h">Memory</button>
+                <button class="cmd-btn" data-cmd="df -h">Disk</button>
+                <button class="cmd-btn" data-cmd="ls -lha /">List Root Dir</button>
+                <button class="cmd-btn" data-cmd="dmesg | tail -n 50">dmesg</button>
             </div>
-            <div class="header-controls">
-                <button id="toggleAllSectionsBtn">모두 접기</button>
+            <div class="content">
+                <div class="input-group"><label>Kill PID:</label><input id="killPidInput" placeholder="PID"><button id="killBtn">Kill</button></div>
             </div>
         </div>
 
-        <details class="gui-section" open><summary>📂 파일 전송 및 관리</summary><div>
-            <div class="button-grid">
-                <button class="cmd-btn" data-cmd="ls -lha">파일 목록 (ls -lha)</button>
-                <button class="cmd-btn" data-cmd="pwd">현재 경로 (pwd)</button>
+        <div class="gui-section">
+            <h3>Network Interface & Routing</h3>
+            <div class="content button-grid">
+                <button class="cmd-btn" data-cmd="ip -c a">IP Addresses</button>
+                <button class="cmd-btn" data-cmd="ifconfig">ifconfig</button>
+                <button class="cmd-btn" data-cmd="ip route">Routing Table</button>
+                <button class="cmd-btn" data-cmd="brctl show">Show Bridges</button>
+                <button class="cmd-btn" data-cmd="iptables -L -n -v">List iptables</button>
             </div>
-            <div class="input-group">
-                <input type="text" id="cdPathInput" placeholder="/tmp/test">
-                <button id="cdAndLsBtn">➡️ 경로 이동 & 목록 표시</button>
+        </div>
+
+        <div class="gui-section">
+            <h3>TSN & Ethtool</h3>
+            <div class="content">
+                <div class="input-group"><label>Ethtool:</label><input id="ethtoolIfaceInput" type="text" value="end0"><select id="ethtoolParamSelect"><option value="-T">Timestamping</option><option value="-S">Statistics</option><option value="-k">Features</option><option value="-i">Driver Info</option><option value="-g">Ring Params</option></select><button id="runEthtoolBtn">Run</button></div>
+                <div class="input-group"><label>PTP4L:</label><input id="ptp4lIfaceInput" type="text" value="end0"><button id="runPtp4lBtn">Run PTP</button></div>
+                <div class="input-group"><label>TC Qdisc:</label><input id="tcIfaceInput" type="text" value="end0"><select id="tcActionSelect"><option>add</option><option>replace</option><option>del</option></select><select id="tcQdiscSelect"><option>mqprio</option><option>cbs</option><option>taprio</option></select><button id="runTcBtn">Run TC</button></div>
             </div>
-            <hr style="border-color: var(--border-color); margin: 15px 0;">
-            <div class="input-group">
-                <label>업로드:</label>
-                <input type="file" id="fileInput" style="flex-grow: 1;">
+        </div>
+
+        <div class="gui-section">
+            <h3>Network Performance & Capture</h3>
+            <div class="content">
+                 <div class="input-group"><label>tcpdump:</label><input id="tcpdumpInput" value="-i end0 -c 20" placeholder="options"><button id="runTcpdumpBtn">Start Capture</button></div>
+                <div class="input-group"><label>iperf3 Srv:</label><button class="cmd-btn" data-cmd="iperf3 -s">Start Server</button></div>
+                <div class="input-group"><label>iperf3 Cli:</label><input id="iperfClientInput" value="127.0.0.1 -u -b 100M" placeholder="<host> [options]"><button id="runIperfClientBtn">Run Client</button></div>
             </div>
-            <div class="input-group">
-                <input type="text" id="devicePathInput" placeholder="업로드 경로 (e.g., /tmp/file)">
-                <button id="uploadFileBtn">⬆️ 업로드</button>
+        </div>
+
+        <div class="gui-section">
+            <h3>CAN Bus</h3>
+            <div class="content">
+                <div class="button-grid">
+                    <button class="cmd-btn" data-cmd="ip -s link show can0">CAN0 Stats</button>
+                    <button class="cmd-btn" data-cmd="ip -s link show can1">CAN1 Stats</button>
+                </div>
+                <div class="input-group"><label>Candump:</label><input id="candumpInput" value="any" placeholder="<iface>"><button id="runCandumpBtn">Sniff</button></div>
+                <div class="input-group"><label>Cansend:</label><input id="cansendInput" value="can0 123#112233" placeholder="<iface> <id>#<data>"><button id="sendCanBtn">Send</button></div>
             </div>
-            <hr style="border-color: var(--border-color); margin: 15px 0;">
-             <div class="input-group">
-                <label>다운로드:</label>
-                <input id="downloadPathInput" placeholder="다운로드할 파일 경로" style="flex-grow: 1;">
-                <button id="downloadFileBtn">⬇️ 다운로드</button>
+        </div>
+
+        <div class="gui-section">
+            <h3>File Transfer</h3>
+            <div class="content">
+                <div class="input-group"><label>Upload:</label><input type="file" id="fileInput"><button id="uploadFileBtn">Upload</button></div>
+                <div class="input-group"><label>Path:</label><input id="remotePathInput" placeholder="/tmp/uploaded_file"></div>
+                 <hr style="border-color: var(--border); margin: 5px 0;">
+                <div class="input-group"><label>Download:</label><input id="downloadPathInput" placeholder="/tmp/capture.pcap"><button id="downloadFileBtn">Download</button></div>
+                <div id="status"></div>
             </div>
-            <div id="transferStatus" class="status-text"></div>
-        </div></details>
+        </div>
         
-        <details class="gui-section"><summary>📡 고급 네트워킹 & TSN</summary><div>
-            <div class="button-grid">
-                 <button class="cmd-btn" data-cmd="ip -c a">IP 주소</button>
-                 <button class="cmd-btn" data-cmd="ip route">라우팅 테이블</button>
-                 <button class="cmd-btn" data-cmd="brctl show">브릿지 보기</button>
-                 <button class="cmd-btn" data-cmd="iptables -L -n -v">iptables 목록</button>
+        <div class="gui-section">
+            <h3>System Control</h3>
+            <div class="content button-grid">
+                <button id="rebootBtn" style="background-color: #d19a66; color: #1e1e1e;">Reboot</button>
+                <button id="poweroffBtn" style="background-color: #e06c75; color: white;">Power Off</button>
             </div>
-            <hr style="border-color: var(--border-color); margin: 15px 0;">
-            <div class="input-group"><label>Ethtool:</label><input id="ethtoolIfaceInput" type="text" value="eth0"><select id="ethtoolParamSelect"><option value="-T">Timestamping</option><option value="-S">Statistics</option><option value="-k">Features</option></select><button id="runEthtoolBtn">실행</button></div>
-            <div class="input-group"><label>PTP4L:</label><input id="ptp4lIfaceInput" type="text" value="eth0"><button id="runPtp4lBtn">PTP 실행</button></div>
-            <div class="input-group"><label>TC Qdisc:</label><input id="tcIfaceInput" type="text" value="eth0"><select id="tcActionSelect"><option>add</option><option>replace</option><option>del</option></select><select id="tcQdiscSelect"><option>mqprio</option><option>cbs</option><option>taprio</option></select><button id="runTcBtn">TC 실행</button></div>
-        </div></details>
-        
-        <details class="gui-section"><summary>📈 네트워크 성능 & 캡쳐</summary><div>
-             <div class="input-group"><label>tcpdump:</label><input id="tcpdumpInput" value="-i eth0 -c 20" placeholder="옵션"><button id="runTcpdumpBtn">캡쳐 시작</button></div>
-             <div class="input-group"><label>iperf3 서버:</label><button class="cmd-btn" data-cmd="iperf3 -s">서버 시작</button></div>
-             <div class="input-group"><label>iperf3 클라:</label><input id="iperfClientInput" value="127.0.0.1 -u -b 100M" placeholder="<호스트> [옵션]"><button id="runIperfClientBtn">클라이언트 실행</button></div>
-             <div class="input-group"><label>Ping:</label><input id="pingInput" placeholder="e.g., 8.8.8.8"><button id="pingBtn">Ping</button></div>
-        </div></details>
-
-        <details class="gui-section"><summary>🚌 CAN 버스</summary><div>
-             <div class="button-grid">
-                <button class="cmd-btn" data-cmd="ip -s link show can0">CAN0 상태</button>
-                <button class="cmd-btn" data-cmd="ip -s link show can1">CAN1 상태</button>
-            </div>
-            <div class="input-group"><label>Candump:</label><input id="candumpInput" value="any" placeholder="<인터페이스>"><button id="runCandumpBtn">수신</button></div>
-            <div class="input-group"><label>Cansend:</label><input id="cansendInput" value="can0 123#112233" placeholder="<인터페이스> <id>#<data>"><button id="sendCanBtn">전송</button></div>
-        </div></details>
-
-        <details class="gui-section" open><summary>🩺 프로세스 & 시스템 로그</summary><div>
-             <div class="button-grid">
-                <button class="cmd-btn" data-cmd="ps aux">프로세스 목록 (ps)</button>
-                <button class="cmd-btn" data-cmd="top -b -n 1">Top 프로세스</button>
-                <button class="cmd-btn" data-cmd="dmesg | tail -n 50">커널 로그 (dmesg)</button>
-            </div>
-            <div class="input-group">
-                <input type="text" id="pidInput" placeholder="종료할 PID 입력">
-                <button id="killBtn" style="background-color: var(--color-yellow);">프로세스 종료</button>
-            </div>
-        </div></details>
-
-        <details class="gui-section"><summary>ℹ️ 시스템 정보</summary><div>
-            <div class="button-grid">
-                <button class="cmd-btn" data-cmd="uname -a">커널 & OS</button>
-                <button class="cmd-btn" data-cmd="lscpu | grep 'Model name'">CPU 모델</button>
-                <button class="cmd-btn" data-cmd="free -h">메모리 사용량</button>
-                <button class="cmd-btn" data-cmd="df -h">디스크 사용량</button>
-            </div>
-        </div></details>
-
-        <details class="gui-section" open><summary>🚨 시스템 제어</summary><div>
-            <div class="button-grid">
-                <button id="rebootBtn" style="background-color: var(--color-yellow);">재부팅</button>
-                <button id="poweroffBtn" style="background-color: var(--color-red);">전원 끄기</button>
-            </div>
-        </div></details>
+        </div>
     </div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const App = {
-        state: {
-            port: null,
-            reader: null,
-            writer: null,
-            isReading: false,
-            onDataDisposable: null,
-            areSectionsExpanded: true,
-            fileDownloadInProgress: false,
-            fileDownloadBuffer: '',
-        },
+    document.addEventListener('DOMContentLoaded', () => {
+        const App = {
+            state: {
+                port: null,
+                reader: null,
+                writer: null,
+                isReading: false,
+                onDataDisposable: null,
+                fileDownloadInProgress: false,
+                fileDownloadBuffer: '',
+            },
 
-        ui: {},
-        
-        term: new Terminal({
-            cursorBlink: true, fontFamily: 'Consolas, "Courier New", monospace', fontSize: 14,
-            theme: { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#d4d4d4', selectionBackground: '#555' }
-        }),
-        fitAddon: new FitAddon.FitAddon(),
-
-        // --- 초기화 ---
-        init() {
-            if (!navigator.serial) {
-                this.showCompatibilityError();
-                return;
-            }
-            this.cacheUI();
-            this.setupTerminal();
-            this.setGuiEnabled(false);
-            this.bindEvents();
-        },
-
-        cacheUI() {
-            const ids = [
-                'connectBtn', 'disconnectBtn', 'baudRateSelect', 'clearTermBtn', 'terminal-container', 'gui-pane',
-                'toggleAllSectionsBtn',
-                'cdPathInput', 'cdAndLsBtn', 'fileInput', 'devicePathInput', 'uploadFileBtn', 'downloadPathInput', 'downloadFileBtn', 'transferStatus',
-                'ethtoolIfaceInput', 'ethtoolParamSelect', 'runEthtoolBtn',
-                'ptp4lIfaceInput', 'runPtp4lBtn',
-                'tcIfaceInput', 'tcActionSelect', 'tcQdiscSelect', 'runTcBtn',
-                'tcpdumpInput', 'runTcpdumpBtn',
-                'iperfClientInput', 'runIperfClientBtn',
-                'pingInput', 'pingBtn',
-                'candumpInput', 'runCandumpBtn', 'cansendInput', 'sendCanBtn',
-                'pidInput', 'killBtn',
-                'rebootBtn', 'poweroffBtn'
-            ];
-            ids.forEach(id => this.ui[id] = document.getElementById(id));
+            ui: {}, // To be populated by cacheUI()
             
-            this.ui.allGuiSections = document.querySelectorAll('.gui-section');
-            this.ui.cmdBtns = document.querySelectorAll('.cmd-btn');
-            this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select');
-        },
-        
-        setupTerminal() {
-            this.term.loadAddon(this.fitAddon);
-            this.term.open(this.ui['terminal-container']);
-            this.fitAddon.fit();
-            new ResizeObserver(() => this.fitAddon.fit()).observe(this.ui['terminal-container']);
-        },
+            term: new Terminal({
+                cursorBlink: true, fontFamily: 'monospace', fontSize: 14,
+                theme: { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#d4d4d4', selectionBackground: 'rgba(255, 255, 255, 0.2)' }
+            }),
+            fitAddon: new FitAddon.FitAddon(),
 
-        showCompatibilityError() {
-            this.ui['terminal-container'].innerHTML = `<div style="padding: 20px; color: #ffcc00; font-size: 16px;"><h2>⚠️ Web Serial API가 지원되지 않습니다</h2><p>사용 중인 브라우저가 Web Serial API를 지원하지 않을 수 있습니다. 최신 버전의 Chrome, Edge, Opera 브라우저를 사용해 주세요.</p></div>`;
-            document.getElementById('controls').style.display = 'none';
-            this.ui['gui-pane'].style.display = 'none';
-        },
-        
-        // --- UI 및 상태 관리 ---
-        setGuiEnabled(enabled) {
-            this.ui.guiControls.forEach(c => c.disabled = !enabled);
-            this.ui.connectBtn.disabled = enabled;
-            this.ui.disconnectBtn.disabled = !enabled;
-            this.ui.baudRateSelect.disabled = enabled;
-        },
-
-        toggleAllSections() {
-            this.state.areSectionsExpanded = !this.state.areSectionsExpanded;
-            this.ui.allGuiSections.forEach(section => section.open = this.state.areSectionsExpanded);
-            this.ui.toggleAllSectionsBtn.textContent = this.state.areSectionsExpanded ? '모두 접기' : '모두 펼치기';
-        },
-        
-        // --- 시리얼 통신 ---
-        async sendSerial(data) {
-            if (!this.state.port?.writable) return;
-            try {
-                this.state.writer = this.state.port.writable.getWriter();
-                await this.state.writer.write(new TextEncoder().encode(data));
-            } catch (e) {
-                this.term.writeln(`\r\n\x1b[31m[ERROR] 쓰기 실패: ${e.message}\x1b[0m`);
-            } finally {
-                if (this.state.writer) this.state.writer.releaseLock();
-            }
-        },
-
-        async sendCommand(cmd, showInTerm = true) {
-            if (this.state.port && cmd) {
-                this.term.focus();
-                if(showInTerm) this.term.writeln(`\x1b[36m$ ${cmd}\x1b[0m`);
-                await this.sendSerial(cmd + '\r');
-            }
-        },
-        
-        async connect() {
-            if (this.state.port) return;
-            try {
-                this.state.port = await navigator.serial.requestPort();
-                await this.state.port.open({ baudRate: parseInt(this.ui.baudRateSelect.value, 10) });
-                
-                this.setGuiEnabled(true);
-                this.state.isReading = true;
-                this.readLoop();
-                
-                this.term.writeln('\x1b[32m[SYSTEM] S32G 장치에 연결되었습니다.\x1b[0m');
-                this.term.focus();
-                this.state.onDataDisposable = this.term.onData(data => this.sendSerial(data));
-            } catch (error) {
-                this.term.writeln(`\r\n\x1b[31m[ERROR] ${error.message}\x1b[0m`);
-            }
-        },
-        
-        async disconnect() {
-            const portToClose = this.state.port;
-            if (!portToClose) return;
-            this.state.isReading = false;
-            if (this.state.onDataDisposable) this.state.onDataDisposable.dispose();
-            if (this.state.reader) { try { await this.state.reader.cancel(); } catch(e) {} }
-            if (portToClose.writable) { try { await portToClose.writable.close(); } catch(e) {} }
-            try { await portToClose.close(); } catch(e) {}
+            // --- METHODS ---
             
-            if (this.state.port === portToClose) {
-                this.state.port = null;
-                this.setGuiEnabled(false);
-                this.term.writeln('\r\n\x1b[33m[SYSTEM] 연결이 해제되었습니다.\x1b[0m');
-            }
-        },
-        
-        async readLoop() {
-            while (this.state.port?.readable && this.state.isReading) {
-                const reader = this.state.port.readable.getReader();
-                this.state.reader = reader;
-                try {
-                    while (true) {
-                        const { value, done } = await reader.read();
-                        if (done) break;
-                        
-                        const decodedChunk = new TextDecoder().decode(value, { stream: true });
-                        if (this.state.fileDownloadInProgress) {
-                            this.handleFileDownloadChunk(decodedChunk);
-                        } else {
-                            this.term.write(decodedChunk);
-                        }
-                    }
-                } catch (error) { 
-                    if (this.state.isReading) this.term.writeln(`\r\n\x1b[31m[ERROR] 읽기 실패: ${error.message}\x1b[0m`);
-                } finally {
-                    reader.releaseLock();
-                    this.state.reader = null;
+            init() {
+                if (!navigator.serial) {
+                    alert("Web Serial API is not supported. Please use a modern browser like Chrome or Edge.");
+                    return;
                 }
-            }
-        },
+                this.cacheUI();
+                this.setupTerminal();
+                this.setGuiEnabled(false);
+                this.bindEvents();
+            },
+            
+            cacheUI() {
+                const ids = [
+                    'connectBtn', 'disconnectBtn', 'baudRateSelect', 'rootLoginBtn', 'clearTermBtn', 'terminalContainer',
+                    'ethtoolParamSelect', 'ethtoolIfaceInput', 'runEthtoolBtn', 'tcpdumpInput', 'runTcpdumpBtn',
+                    'ptp4lIfaceInput', 'runPtp4lBtn', 'tcIfaceInput', 'tcActionSelect', 'tcQdiscSelect', 'runTcBtn',
+                    'iperfClientInput', 'runIperfClientBtn',
+                    'candumpInput', 'runCandumpBtn', 'cansendInput', 'sendCanBtn',
+                    'killPidInput', 'killBtn',
+                    'fileInput', 'remotePathInput', 'uploadFileBtn', 'downloadPathInput', 'downloadFileBtn', 'status',
+                    'rebootBtn', 'poweroffBtn'
+                ];
+                ids.forEach(id => this.ui[id] = document.getElementById(id));
+                this.ui.cmdBtns = document.querySelectorAll('.cmd-btn');
+                this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select, #rootLoginBtn');
+            },
 
-        // --- 파일 전송 ---
-        handleFileUpload() {
-            const file = this.ui.fileInput.files[0];
-            const remotePath = this.ui.devicePathInput.value.trim();
+            setupTerminal() {
+                this.term.loadAddon(this.fitAddon);
+                this.term.open(this.ui.terminalContainer);
+                this.fitAddon.fit();
+                new ResizeObserver(() => this.fitAddon.fit()).observe(this.ui.terminalContainer);
+            },
 
-            if (!file || !remotePath) {
-                this.ui.transferStatus.textContent = '업로드할 파일과 장치 내 경로를 모두 지정해주세요.';
-                return;
-            }
+            setGuiEnabled(enabled) {
+                this.ui.guiControls.forEach(c => c.disabled = !enabled);
+                this.ui.connectBtn.disabled = enabled;
+                this.ui.disconnectBtn.disabled = !enabled;
+                this.ui.baudRateSelect.disabled = enabled;
+            },
 
-            const reader = new FileReader();
-            this.ui.uploadFileBtn.disabled = true;
-            this.ui.transferStatus.textContent = `파일 읽는 중: ${file.name}...`;
+            async sendSerial(data) {
+                if (!this.state.port?.writable) return;
+                try {
+                    this.state.writer = this.state.port.writable.getWriter();
+                    await this.state.writer.write(new TextEncoder().encode(data));
+                } catch (e) { this.term.writeln(`\r\n\x1b[31m[ERROR] Write failed: ${e.message}\x1b[0m`); }
+                finally { if (this.state.writer) this.state.writer.releaseLock(); }
+            },
 
-            reader.onload = (e) => {
-                this.ui.transferStatus.textContent = '파일을 Base64로 인코딩 중...';
-                const base64Content = e.target.result.split(',')[1];
-                const cmd = `echo '${base64Content}' | base64 -d > ${remotePath}`;
+            async sendCommand(cmd, showInTerm = true) {
+                if (this.state.port && cmd) {
+                    this.term.focus();
+                    if(showInTerm) this.term.writeln(`\x1b[36m$ ${cmd}\x1b[0m`);
+                    await this.sendSerial(cmd + '\r');
+                }
+            },
+            
+            async connect() {
+                try {
+                    this.state.port = await navigator.serial.requestPort();
+                    await this.state.port.open({ baudRate: parseInt(this.ui.baudRateSelect.value, 10) });
+                    this.setGuiEnabled(true);
+                    this.state.isReading = true;
+                    this.readLoop();
+                    this.term.writeln('\x1b[32m[SYSTEM] Connected.\x1b[0m');
+                    this.term.focus();
+                    this.state.onDataDisposable = this.term.onData(data => { if (!this.state.fileDownloadInProgress) { this.sendSerial(data); } });
+                } catch (error) { this.term.writeln(`\r\n\x1b[31m[ERROR] ${error.message}\x1b[0m`); }
+            },
+            
+            async disconnect() {
+                const portToClose = this.state.port; if (!portToClose) return;
+                this.state.isReading = false;
+                if (this.state.onDataDisposable) { this.state.onDataDisposable.dispose(); this.state.onDataDisposable = null; }
+                if (this.state.reader) { try { await this.state.reader.cancel(); } catch(e) {/*Ignore*/}}
+                if (portToClose.writable) { try { await portToClose.writable.close(); } catch(e) {/*Ignore*/}}
+                try { await portToClose.close(); } catch(e) {/*Ignore*/ }
                 
-                this.term.writeln(`\r\n\x1b[33m[SYSTEM] ${file.name} -> ${remotePath} 업로드 중...\x1b[0m`);
-                this.sendCommand(cmd, false).then(() => {
-                    this.term.writeln(`\r\n\x1b[32m[SYSTEM] 업로드 명령이 전송되었습니다.\x1b[0m`);
-                    this.ui.transferStatus.textContent = '업로드 시작됨!';
-                });
-            };
-            reader.onerror = () => { 
-                this.ui.transferStatus.textContent = `파일 읽기 오류: ${reader.error}`;
-                this.term.writeln(`\r\n\x1b[31m[ERROR] 파일 읽기 실패: ${reader.error}\x1b[0m`);
-            };
-            reader.onloadend = () => {
-                this.ui.uploadFileBtn.disabled = false;
-            };
+                if (this.state.port === portToClose) {
+                    this.state.port = null; this.setGuiEnabled(false);
+                    this.term.writeln('\r\n\x1b[33m[SYSTEM] Disconnected.\x1b[0m');
+                }
+            },
             
-            reader.readAsDataURL(file);
-        },
+            async readLoop() {
+                while (this.state.port?.readable && this.state.isReading) {
+                    this.state.reader = this.state.port.readable.getReader();
+                    try {
+                        while (true) {
+                            const { value, done } = await this.state.reader.read();
+                            if (done) break;
+                            const decodedChunk = new TextDecoder().decode(value, { stream: true });
+                            if (this.state.fileDownloadInProgress) {
+                                this.handleFileDownloadChunk(decodedChunk);
+                            } else {
+                                this.term.write(decodedChunk);
+                            }
+                        }
+                    } catch (error) { if (this.state.isReading) this.term.writeln(`\r\n\x1b[31m[ERROR] Read loop failed: ${error.message}\x1b[0m`); } 
+                    finally { this.state.reader.releaseLock(); }
+                }
+            },
 
-        handleFileDownload() {
-            const path = this.ui.downloadPathInput.value.trim();
-            if (!path) {
-                this.ui.transferStatus.textContent = '다운로드할 파일의 경로를 입력해주세요.';
-                return;
-            }
-            this.state.fileDownloadInProgress = true;
-            this.state.fileDownloadBuffer = '';
-            this.ui.transferStatus.textContent = `${path} 파일 요청 중...`;
-            this.term.writeln(`\r\n\x1b[33m[SYSTEM] ${path} 파일 다운로드를 시작합니다...\x1b[0m`);
-            this.sendCommand(`if [ -f "${path}" ]; then cat "${path}" | base64; fi; echo "DOWNLOAD_END"`, false);
-        },
-        
-        handleFileDownloadChunk(chunk) {
-            this.state.fileDownloadBuffer += chunk;
-            const endMarker = 'DOWNLOAD_END';
-            if (this.state.fileDownloadBuffer.includes(endMarker)) {
-                const fileData = this.state.fileDownloadBuffer.substring(0, this.state.fileDownloadBuffer.indexOf(endMarker)).trim();
-                this.state.fileDownloadInProgress = false;
-                this.term.writeln('\r\n\x1b[32m[SYSTEM] Base64 데이터 수신 완료. 디코딩 중...\x1b[0m');
-                this.ui.transferStatus.textContent = '데이터 수신 완료. 디코딩 중...';
-                this.saveDownloadedFile(fileData);
+            // --- Feature Implementations ---
+
+            handleFileUpload() {
+                const file = this.ui.fileInput.files[0];
+                const remotePath = this.ui.remotePathInput.value.trim();
+                if (!file || !remotePath) {
+                    this.ui.status.textContent = "Select file and enter destination path.";
+                    return;
+                }
+
+                const reader = new FileReader();
+                this.ui.status.textContent = `Reading ${file.name}...`;
+                this.ui.uploadFileBtn.disabled = true;
+
+                reader.onload = (e) => {
+                    this.ui.status.textContent = `Encoding...`;
+                    const base64Content = e.target.result.split(',')[1];
+                    // Using "cat <<EOF" is more robust for sending large, complex data
+                    const cmd = `cat <<'EOF' | base64 -d > ${remotePath}\n${base64Content}\nEOF`;
+                    this.ui.status.textContent = `Uploading to ${remotePath}...`;
+                    this.sendCommand(cmd, false).then(() => {
+                        this.term.writeln(`\r\n\x1b[32m[SYSTEM] File upload command for ${remotePath} sent.\x1b[0m`);
+                        this.ui.status.textContent = 'Upload initiated.';
+                    });
+                };
+                reader.onloadend = () => { this.ui.uploadFileBtn.disabled = false; };
+                reader.onerror = (err) => { this.ui.status.textContent = `Error reading file: ${err}`; };
+                reader.readAsDataURL(file);
+            },
+            
+            handleFileDownload() {
+                const path = this.ui.downloadPathInput.value.trim();
+                if (!path) {
+                    this.ui.status.textContent = 'Enter a file path to download.';
+                    return;
+                }
+                if (this.state.fileDownloadInProgress) {
+                    this.ui.status.textContent = 'Another download is already in progress.';
+                    return;
+                }
+                this.state.fileDownloadInProgress = true;
                 this.state.fileDownloadBuffer = '';
+                this.ui.status.textContent = `Requesting ${path}...`;
+                // Using "if; then; fi;" ensures we don't get an error if the file doesn't exist
+                this.sendCommand(`if [ -f "${path}" ]; then cat "${path}" | base64; fi; echo "DOWNLOAD_END"`, false);
+            },
+
+            handleFileDownloadChunk(chunk) {
+                this.state.fileDownloadBuffer += chunk;
+                const endMarker = 'DOWNLOAD_END';
+                if (this.state.fileDownloadBuffer.includes(endMarker)) {
+                    const fileData = this.state.fileDownloadBuffer.substring(0, this.state.fileDownloadBuffer.indexOf(endMarker)).trim();
+                    this.state.fileDownloadInProgress = false;
+                    
+                    if (fileData.length === 0) {
+                         this.term.writeln('\r\n\x1b[33m[SYSTEM] Download failed. File may not exist or is empty.\x1b[0m');
+                         this.ui.status.textContent = 'Download failed (file not found?).';
+                         return;
+                    }
+                    
+                    this.term.writeln('\r\n\x1b[32m[SYSTEM] Base64 data received. Decoding...\x1b[0m');
+                    this.ui.status.textContent = 'Base64 data received. Decoding...';
+                    this.saveDownloadedFile(fileData);
+                    this.state.fileDownloadBuffer = '';
+                }
+            },
+
+            saveDownloadedFile(base64Data) {
+                try {
+                    const byteCharacters = atob(base64Data);
+                    const byteArray = new Uint8Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) { byteArray[i] = byteCharacters.charCodeAt(i); }
+                    const blob = new Blob([byteArray]);
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    const filename = this.ui.downloadPathInput.value.split('/').pop() || 'downloaded_file';
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    this.term.writeln(`\x1b[32m[SYSTEM] File "${filename}" downloaded.\x1b[0m`);
+                    this.ui.status.textContent = `File "${filename}" downloaded.`;
+                } catch (e) { 
+                    this.term.writeln(`\x1b[31m[ERROR] Failed to decode or save file: ${e.message}\x1b[0m`);
+                    this.ui.status.textContent = 'Error: Failed to decode file.';
+                }
+            },
+
+            bindEvents() {
+                // Connection & Basic Controls
+                this.ui.connectBtn.addEventListener('click', () => this.connect());
+                this.ui.disconnectBtn.addEventListener('click', () => this.disconnect());
+                navigator.serial?.addEventListener('disconnect', (e) => { if (e.target === this.state.port) this.disconnect(); });
+                this.ui.clearTermBtn.addEventListener('click', () => this.term.clear());
+                this.ui.rootLoginBtn.addEventListener('click', () => this.sendCommand('root', true));
+                
+                // Generic command buttons
+                this.ui.cmdBtns.forEach(b => b.addEventListener('click', () => this.sendCommand(b.dataset.cmd)));
+
+                // Specialized Commands
+                this.ui.runEthtoolBtn.addEventListener('click', () => { const param = this.ui.ethtoolParamSelect.value; const iface = this.ui.ethtoolIfaceInput.value.trim(); if(iface) this.sendCommand(`ethtool ${param} ${iface}`); });
+                this.ui.runTcpdumpBtn.addEventListener('click', () => { const opts = this.ui.tcpdumpInput.value.trim(); if(opts) { this.sendCommand(`tcpdump ${opts}`); this.term.writeln(`\x1b[33m[SYSTEM] tcpdump started. To stop, send Ctrl+C in terminal.\x1b[0m`); } });
+                this.ui.runPtp4lBtn.addEventListener('click', () => { const iface = this.ui.ptp4lIfaceInput.value.trim(); if(iface) this.sendCommand(`ptp4l -2 -H -m -s -i ${iface}`); });
+                this.ui.runTcBtn.addEventListener('click', () => {
+                    const iface = this.ui.tcIfaceInput.value.trim(); const action = this.ui.tcActionSelect.value; const qdisc = this.ui.tcQdiscSelect.value;
+                    let cmd = '';
+                    if (!iface) return;
+                    if (qdisc === 'mqprio') cmd = `tc qdisc ${action} dev ${iface} root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4`;
+                    else if (qdisc === 'cbs') cmd = `tc qdisc ${action} dev ${iface} parent 1:2 cbs idleslope 67000 sendslope -933000 hicredit 2147483647 locredit -2147483648 offload 1`;
+                    else if (qdisc === 'taprio') cmd = `tc qdisc ${action} dev ${iface} root taprio num_tc 5 map 0 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4 base-time 0 sched-entry S 10 50000 sched-entry S 0f 450000 sched-entry S 1f 96 flags 0x2`;
+                    if(cmd) this.sendCommand(cmd);
+                });
+
+                this.ui.runIperfClientBtn.addEventListener('click', () => { const opts = this.ui.iperfClientInput.value.trim(); if(opts) this.sendCommand(`iperf3 -c ${opts}`); });
+                this.ui.runCandumpBtn.addEventListener('click', () => { const iface = this.ui.candumpInput.value.trim(); if(iface) this.sendCommand(`candump ${iface}`); });
+                this.ui.sendCanBtn.addEventListener('click', () => { const content = this.ui.cansendInput.value.trim(); if(content) this.sendCommand(`cansend ${content}`); });
+                this.ui.killBtn.addEventListener('click', () => { const pid = this.ui.killPidInput.value.trim(); if(pid && confirm(`Kill PID ${pid}?`)) this.sendCommand(`kill -9 ${pid}`); });
+
+                // File Transfer
+                this.ui.uploadFileBtn.addEventListener('click', () => this.handleFileUpload());
+                this.ui.downloadFileBtn.addEventListener('click', () => this.handleFileDownload());
+                
+                // System Control
+                this.ui.rebootBtn.addEventListener('click', () => { if(confirm('REBOOT the device?')) this.sendCommand('reboot'); });
+                this.ui.poweroffBtn.addEventListener('click', () => { if(confirm('POWER OFF the device?')) this.sendCommand('poweroff'); });
             }
-        },
+        };
 
-        saveDownloadedFile(base64Data) {
-            try {
-                const byteCharacters = atob(base64Data);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) { byteNumbers[i] = byteCharacters.charCodeAt(i); }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray]);
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                const filename = this.ui.downloadPathInput.value.split('/').pop() || 'downloaded_file';
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                this.term.writeln(`\x1b[32m[SYSTEM] 파일 "${filename}" 다운로드 완료.\x1b[0m`);
-                this.ui.transferStatus.textContent = `파일 "${filename}" 다운로드 완료.`;
-            } catch (e) { 
-                this.term.writeln(`\x1b[31m[ERROR] 파일 디코딩 또는 저장 실패: ${e.message}\x1b[0m`);
-                this.ui.transferStatus.textContent = '오류: 파일 디코딩 실패.';
-                this.state.fileDownloadInProgress = false;
-            }
-        },
-
-        // --- 이벤트 바인딩 ---
-        bindEvents() {
-            // 메인 컨트롤
-            this.ui.connectBtn.addEventListener('click', () => this.connect());
-            this.ui.disconnectBtn.addEventListener('click', () => this.disconnect());
-            navigator.serial?.addEventListener('disconnect', (e) => { if (e.target === this.state.port) this.disconnect(); });
-            this.ui.clearTermBtn.addEventListener('click', () => { this.term.clear(); this.term.write('\x1b[H\x1b[2J'); });
-            this.ui.toggleAllSectionsBtn.addEventListener('click', () => this.toggleAllSections());
-
-            // 간단한 명령어 버튼
-            this.ui.cmdBtns.forEach(b => b.addEventListener('click', () => this.sendCommand(b.dataset.cmd)));
-            
-            // 파일 & 경로
-            this.ui.cdAndLsBtn.addEventListener('click', () => { const p = this.ui.cdPathInput.value.trim(); if(p) this.sendCommand(`cd ${p} && ls -lha`); });
-            this.ui.uploadFileBtn.addEventListener('click', () => this.handleFileUpload());
-            this.ui.downloadFileBtn.addEventListener('click', () => this.handleFileDownload());
-
-            // 고급 네트워킹 & TSN
-            this.ui.runEthtoolBtn.addEventListener('click', () => { const p = this.ui.ethtoolParamSelect.value; const i = this.ui.ethtoolIfaceInput.value.trim(); if(i) this.sendCommand(`ethtool ${p} ${i}`); });
-            this.ui.runPtp4lBtn.addEventListener('click', () => { const i = this.ui.ptp4lIfaceInput.value.trim(); if(i) this.sendCommand(`ptp4l -2 -H -m -s -i ${i}`); });
-            this.ui.runTcBtn.addEventListener('click', () => {
-                const iface = this.ui.tcIfaceInput.value.trim(); const action = this.ui.tcActionSelect.value; const qdisc = this.ui.tcQdiscSelect.value;
-                let cmd = '';
-                if (qdisc === 'mqprio') cmd = `tc qdisc ${action} dev ${iface} root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4`;
-                else if (qdisc === 'cbs') cmd = `tc qdisc ${action} dev ${iface} parent 1:2 cbs idleslope 67000 sendslope -933000 hicredit 2147483647 locredit -2147483648 offload 1`;
-                else if (qdisc === 'taprio') cmd = `tc qdisc ${action} dev ${iface} root taprio num_tc 5 map 0 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4 base-time 0 sched-entry S 10 50000 sched-entry S 0f 450000 sched-entry S 1f 96 flags 0x2`;
-                if(cmd) this.sendCommand(cmd);
-            });
-
-            // 네트워크 성능 & 캡쳐
-            this.ui.runTcpdumpBtn.addEventListener('click', () => { const o = this.ui.tcpdumpInput.value.trim(); if(o) { this.sendCommand(`tcpdump ${o}`); this.term.writeln(`\x1b[33m[SYSTEM] tcpdump 시작됨. 중지하려면 터미널에서 Ctrl+C를 입력하세요.\x1b[0m`); } });
-            this.ui.runIperfClientBtn.addEventListener('click', () => { const o = this.ui.iperfClientInput.value.trim(); if(o) this.sendCommand(`iperf3 -c ${o}`); });
-            this.ui.pingBtn.addEventListener('click', () => { const h = this.ui.pingInput.value.trim(); if(h) this.sendCommand(`ping -c 4 ${h}`); });
-            
-            // CAN 버스
-            this.ui.runCandumpBtn.addEventListener('click', () => { const i = this.ui.candumpInput.value.trim(); if(i) this.sendCommand(`candump ${i}`); });
-            this.ui.sendCanBtn.addEventListener('click', () => { const c = this.ui.cansendInput.value.trim(); if(c) this.sendCommand(`cansend ${c}`); });
-
-            // 시스템 & 프로세스
-            this.ui.killBtn.addEventListener('click', () => { const p = this.ui.pidInput.value.trim(); if (p && confirm(`정말로 PID ${p} 프로세스를 종료하시겠습니까?`)) this.sendCommand(`kill -9 ${p}`); });
-            this.ui.rebootBtn.addEventListener('click', () => { if (confirm('경고: 장치를 재부팅하시겠습니까?')) this.sendCommand('reboot'); });
-            this.ui.poweroffBtn.addEventListener('click', () => { if (confirm('경고: 장치의 전원을 끄시겠습니까?')) this.sendCommand('poweroff'); });
-        }
-    };
-
-    App.init();
-});
+        App.init();
+    });
 </script>
 </body>
 </html>
