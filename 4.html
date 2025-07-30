@@ -2,112 +2,139 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>S32G professional control center - Baremetal Edition</title>
+    <title>S32G professional control center - Stable Edition</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; background-color: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: 14px; }
+        :root {
+            --bg-base: #f5f5f7; --bg-pane: #ffffff; --bg-element: #e9e9ed; --bg-element-hover: #dfdfe3;
+            --border-color: #d1d1d6; --text-primary: #1d1d1f; --text-secondary: #515154;
+            --accent-blue: #007aff; --accent-blue-hover: #0071e3; --accent-green: #30d158;
+            --accent-yellow: #ff9f0a; --accent-red: #ff453a; --shadow-color: rgba(0, 0, 0, 0.05);
+        }
+        html, body { height: 100%; margin: 0; padding: 0; background-color: var(--bg-base); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
         #page-container { display: flex; height: 100%; }
-        #controls { padding: 8px; background-color: #252526; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #444; }
-        #main-content { display: flex; flex-grow: 1; min-height: 0; }
-        #terminal-pane { flex: 1.5; min-width: 0; display: flex; flex-direction: column; }
-        #gui-pane { flex: 1; overflow-y: auto; padding: 10px; background-color: #202124; }
-        #terminal-container { flex-grow: 1; padding: 5px; }
-        .gui-section { margin-bottom: 15px; border: 1px solid #444; border-radius: 4px; }
-        .gui-section h3 { background-color: #333; color: #8ab4f8; padding: 8px; margin: 0; font-size: 1em; border-bottom: 1px solid #444; }
-        .gui-section .content { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-        .button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+        #terminal-pane { flex: 1.5; min-width: 0; display: flex; flex-direction: column; padding: 15px; padding-right: 7.5px; box-sizing: border-box; }
+        #gui-pane { flex: 1; overflow-y: auto; padding: 15px; padding-left: 7.5px; box-sizing: border-box; }
+        .pane-content { background-color: var(--bg-pane); border: 1px solid var(--border-color); border-radius: 12px; box-shadow: 0 4px 12px var(--shadow-color); height: 100%; display: flex; flex-direction: column; }
+        #controls { padding: 10px 15px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border-color); }
+        #terminal-container { flex-grow: 1; padding: 10px; overflow: hidden; }
+        .pane-header { font-size: 16px; font-weight: 600; padding: 10px 15px; border-bottom: 1px solid var(--border-color); }
+        button, select, input {
+            background-color: var(--bg-element); color: var(--text-secondary); border: 1px solid var(--border-color);
+            padding: 8px 12px; font-size: 13px; cursor: pointer; border-radius: 8px; transition: all 0.2s ease;
+            display: flex; align-items: center; gap: 6px; font-weight: 500;
+        }
+        button:hover:not(:disabled) { background-color: var(--bg-element-hover); border-color: #c8c8cd; }
+        button:disabled { background-color: #f2f2f2; color: #b1b1b1; cursor: not-allowed; }
+        button.primary { background-color: var(--accent-blue); color: white; border-color: transparent; }
+        button.primary:hover:not(:disabled) { background-color: var(--accent-blue-hover); }
+        .gui-section { margin-bottom: 15px; }
+        .gui-section h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); padding: 10px 12px; margin: 0; background-color: #f7f7f7; border: 1px solid #e5e5e5; border-radius: 8px 8px 0 0; display: flex; align-items: center; gap: 8px; }
+        .gui-section .content { padding: 12px; display: flex; flex-direction: column; gap: 10px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 8px 8px; }
+        .button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
         .input-group { display: flex; gap: 8px; align-items: center; }
-        button, select, input { width: 100%; background-color: #3c3c3c; color: #d4d4d4; border: 1px solid #555; padding: 6px 10px; border-radius: 4px; font-family: monospace; }
-        button { cursor: pointer; }
-        button:hover:not(:disabled) { background-color: #4c4c4c; }
-        button:disabled { background-color: #2a2a2a; color: #777; cursor: not-allowed; }
-        input, select { flex-grow: 1; }
-        label { white-space: nowrap; }
+        input, select { width: 100%; flex-grow: 1; }
+        @media (max-width: 1200px) { #gui-pane { display: none; } #terminal-pane { padding-right: 15px; } }
     </style>
 </head>
 <body>
 <div id="page-container">
-    <div id="main-content">
-        <div id="terminal-pane">
+    <div id="terminal-pane">
+        <div class="pane-content">
             <div id="controls">
-                <button id="connectBtn">Connect</button>
-                <button id="disconnectBtn" disabled>Disconnect</button>
+                <button id="connectBtn" class="primary"><i data-lucide="zap"></i>Connect</button>
+                <button id="disconnectBtn" disabled style="background-color: var(--accent-red); color:white; border:none;"><i data-lucide="zap-off"></i>Disconnect</button>
                 <select id="baudRateSelect" style="width:auto;"><option value="115200">115200</option><option value="9600">9600</option></select>
-                <button id="rootLoginBtn" disabled>Login as root</button>
-                <button id="clearTermBtn" style="margin-left: auto;">Clear Terminal</button>
+                <button id="rootLoginBtn" class="primary" disabled><i data-lucide="user-cog"></i>Login as root</button>
+                <button id="clearTermBtn" style="margin-left: auto;"><i data-lucide="trash-2"></i>Clear</button>
             </div>
             <div id="terminal-container"></div>
         </div>
-        <div id="gui-pane">
+    </div>
+    <div id="gui-pane">
+        <div class="pane-content" style="padding: 10px;">
             <div class="gui-section">
-                <h3>Network & Interface</h3>
+                <h3><i data-lucide="network"></i>Network & Interface</h3>
                 <div class="content">
                     <div class="button-grid">
                         <button class="cmd-btn" data-cmd="ip -c a">IP Addresses</button>
                         <button class="cmd-btn" data-cmd="ip -s link">Link Stats</button>
                         <button class="cmd-btn" data-cmd="ip route">Routing Table</button>
                         <button class="cmd-btn" data-cmd="brctl show">Show Bridges</button>
-                        <button class="cmd-btn" data-cmd="iptables -L -n -v">List iptables</button>
+                    </div>
+                     <div class="input-group">
+                        <input id="netIfaceInput" type="text" value="end0" placeholder="Interface">
+                        <button id="ifaceUpBtn">UP</button>
+                        <button id="ifaceDownBtn">DOWN</button>
+                    </div>
+                     <div class="input-group">
+                        <input id="ipAddressInput" type="text" placeholder="e.g., 192.168.1.10/24">
+                        <button id="setIpBtn">Set IP</button>
                     </div>
                 </div>
             </div>
 
             <div class="gui-section">
-                <h3>Ethtool / PTP / TSN</h3>
+                <h3><i data-lucide="settings-2"></i>Ethtool & TSN</h3>
                 <div class="content">
-                    <div class="input-group"><label>Ethtool:</label><input id="ethtoolIfaceInput" type="text" value="end0"><select id="ethtoolParamSelect"><option value="-T">Timestamping</option><option value="-S">Statistics</option><option value="-k">Features</option></select><button id="runEthtoolBtn">Run</button></div>
-                    <div class="input-group"><label>PTP4L:</label><input id="ptp4lIfaceInput" type="text" value="end0"><select id="ptp4lLayerSelect"><option value="-2">L2</option><option value="-4">L4</option></select><button id="runPtp4lBtn">Run</button></div>
-                    <div class="input-group"><label>TC Qdisc:</label><input id="tcIfaceInput" type="text" value="end0"><select id="tcActionSelect"><option>add</option><option>replace</option><option>del</option></select><select id="tcQdiscSelect"><option>mqprio</option><option>cbs</option><option>taprio</option></select><button id="runTcBtn">Run Example</button></div>
+                    <div class="input-group">
+                        <select id="ethtoolParamSelect" style="flex-grow: 2;"><option value="-T">Timestamping</option><option value="-S">Statistics</option><option value="-k">Features</option></select>
+                        <input id="ethtoolIfaceInput" type="text" value="end0" placeholder="Interface">
+                        <button id="runEthtoolBtn">Run Ethtool</button>
+                    </div>
+                    <div class="input-group">
+                        <input id="tcpdumpInput" type="text" value="-i end0 -c 10" placeholder="tcpdump options">
+                        <button id="runTcpdumpBtn">Run tcpdump</button>
+                    </div>
+                    <div class="button-grid">
+                        <button class="cmd-btn" data-cmd="ptp4l -2 -H -m -s -i end0">PTP4L Sync</button>
+                        <button class="cmd-btn" data-cmd="tc qdisc add dev end0 root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4">MQPRIO Example</button>
+                    </div>
                 </div>
+            </div>
+            
+            <div class="gui-section">
+                 <h3><i data-lucide="radio-tower"></i>Network Performance (iperf3)</h3>
+                 <div class="content">
+                     <button class="cmd-btn" data-cmd="iperf3 -s">Start iperf3 Server</button>
+                     <div class="input-group">
+                        <input id="iperfClientInput" value="127.0.0.1 -u -b 100M" placeholder="<host> [options]">
+                        <button id="runIperfClientBtn">Run iperf3 Client</button>
+                    </div>
+                 </div>
             </div>
 
             <div class="gui-section">
-                <h3>Network Performance (iperf3)</h3>
-                <div class="content">
-                    <div class="input-group"><label>Server:</label><button class="cmd-btn" data-cmd="iperf3 -s">Start Server</button></div>
-                    <div class="input-group"><label>Client:</label><input id="iperfClientInput" value="127.0.0.1 -u -b 100M" placeholder="<host> [options]"><button id="runIperfClientBtn">Run Client</button></div>
-                </div>
-            </div>
-
-            <div class="gui-section">
-                <h3>CAN Bus</h3>
+                <h3><i data-lucide="bus-front"></i>CAN Bus</h3>
                 <div class="content">
                     <div class="button-grid">
                         <button class="cmd-btn" data-cmd="ip -s link show can0">CAN0 Stats</button>
                         <button class="cmd-btn" data-cmd="ip -s link show can1">CAN1 Stats</button>
                     </div>
-                    <div class="input-group"><label>Candump:</label><input id="candumpInput" value="any" placeholder="<iface>[,...]"><button id="runCandumpBtn">Sniff</button></div>
-                    <div class="input-group"><label>Cansend:</label><input id="cansendInput" value="can0 123#112233" placeholder="<iface> <id>#<data>"><button id="sendCanBtn">Send</button></div>
+                    <div class="input-group"><input id="candumpInput" value="any" placeholder="<iface>[,...]"><button id="runCandumpBtn">Sniff (candump)</button></div>
+                    <div class="input-group"><input id="cansendInput" value="can0 123#112233" placeholder="<iface> <id>#<data>"><button id="sendCanBtn">Send Frame</button></div>
                 </div>
             </div>
 
             <div class="gui-section">
-                <h3>System & Process</h3>
+                <h3><i data-lucide="cpu"></i>System & File</h3>
                 <div class="content">
                     <div class="button-grid">
                         <button class="cmd-btn" data-cmd="ps aux">Processes</button>
                         <button class="cmd-btn" data-cmd="top -b -n 1">Top</button>
                         <button class="cmd-btn" data-cmd="free -h">Memory</button>
                         <button class="cmd-btn" data-cmd="df -h">Disk</button>
-                        <button class="cmd-btn" data-cmd="lscpu">CPU Info</button>
-                        <button class="cmd-btn" data-cmd="dmesg | tail -n 50">dmesg</button>
+                        <button class="cmd-btn" data-cmd="ls -lha /">List Root</button>
                     </div>
-                </div>
-            </div>
-
-            <div class="gui-section">
-                <h3>File Transfer</h3>
-                <div class="content">
-                    <div class="input-group"><label>Upload:</label><input type="file" id="fileInput" style="width:100%;"><button id="uploadFileBtn">Upload</button></div>
-                    <div class="input-group"><label>Download:</label><input id="downloadPathInput" placeholder="/path/to/remote/file"><button id="downloadFileBtn">Download</button></div>
-                    <div id="transferStatus" style="font-size: 0.8em; color: var(--accent-yellow); margin-top: 5px;"></div>
+                    <div class="input-group"><input id="downloadPathInput" placeholder="/path/to/remote/file"><button id="downloadFileBtn">Download File</button></div>
                 </div>
             </div>
             
             <div class="gui-section">
-                <h3>System Control</h3>
+                <h3><i data-lucide="power-circle"></i>System Control</h3>
                 <div class="content button-grid">
                     <button id="rebootBtn" style="background-color: var(--accent-yellow); color: #1e1e1e;">Reboot</button>
                     <button id="poweroffBtn" style="background-color: var(--accent-red); color: white;">Power Off</button>
@@ -127,21 +154,11 @@
 
             init() {
                 if (!navigator.serial) {
-                    alert("Web Serial API not supported.");
+                    alert("Web Serial API is not supported. Please use a modern browser like Chrome or Edge.");
                     return;
                 }
                 this.cacheUI();
-                
-                this.term = new Terminal({
-                    cursorBlink: true, fontFamily: 'monospace', fontSize: 14,
-                    theme: { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#d4d4d4' }
-                });
-                this.fitAddon = new FitAddon.FitAddon();
-                this.term.loadAddon(this.fitAddon);
-                this.term.open(this.ui.terminalContainer);
-                this.fitAddon.fit();
-                new ResizeObserver(() => this.fitAddon.fit()).observe(this.ui.terminalContainer);
-                
+                this.setupTerminal();
                 this.setGuiEnabled(false);
                 this.bindEvents();
                 lucide.createIcons();
@@ -150,20 +167,33 @@
             cacheUI() {
                 const ids = [
                     'connectBtn', 'disconnectBtn', 'baudRateSelect', 'rootLoginBtn', 'clearTermBtn', 'terminalContainer', 
-                    'netIfaceInput', 'ifaceUpBtn', 'ifaceDownBtn', 'ipAddressInput', 'setIpBtn', 'ethtoolIfaceInput', 'ethtoolParamSelect', 'runEthtoolBtn', 
-                    'ptp4lIfaceInput', 'ptp4lLayerSelect', 'runPtp4lBtn', 'tcIfaceInput', 'tcActionSelect', 'tcQdiscSelect', 'runTcBtn',
-                    'iperfClientInput', 'runIperfClientBtn', 'candumpInput', 'runCandumpBtn', 'cansendInput', 'sendCanBtn',
-                    'fileInput', 'uploadFileBtn', 'downloadPathInput', 'downloadFileBtn', 'transferStatus',
-                    'rebootBtn', 'poweroffBtn', 'tcpdumpInput', 'runTcpdumpBtn'
+                    'netIfaceInput', 'ifaceUpBtn', 'ifaceDownBtn', 'ipAddressInput', 'setIpBtn', 
+                    'ethtoolParamSelect', 'ethtoolIfaceInput', 'runEthtoolBtn', 'tcpdumpInput', 'runTcpdumpBtn',
+                    'runPtp4lBtn', 'runMqprioBtn', 'runTaprioBtn',
+                    'iperfClientInput', 'runIperfClientBtn',
+                    'candumpInput', 'runCandumpBtn', 'cansendInput', 'sendCanBtn',
+                    'downloadPathInput', 'downloadFileBtn',
+                    'rebootBtn', 'poweroffBtn'
                 ];
                 ids.forEach(id => this.ui[id] = document.getElementById(id));
-                this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select');
+                this.ui.guiControls = document.querySelectorAll('#gui-pane button, #gui-pane input, #gui-pane select, #rootLoginBtn');
                 this.ui.cmdBtns = document.querySelectorAll('.cmd-btn');
+            },
+
+            setupTerminal() {
+                this.term = new Terminal({
+                    cursorBlink: true, fontFamily: 'monospace', fontSize: 14,
+                    theme: { background: '#ffffff', foreground: '#1d1d1f', cursor: '#1d1d1f', selectionBackground: 'rgba(0,122,255,0.3)' }
+                });
+                this.fitAddon = new FitAddon.FitAddon();
+                this.term.loadAddon(this.fitAddon);
+                this.term.open(this.ui.terminalContainer);
+                this.fitAddon.fit();
+                new ResizeObserver(() => this.fitAddon.fit()).observe(this.ui.terminalContainer);
             },
 
             setGuiEnabled(enabled) {
                 this.ui.guiControls.forEach(c => c.disabled = !enabled);
-                this.ui.rootLoginBtn.disabled = !enabled;
                 this.ui.connectBtn.disabled = enabled;
                 this.ui.disconnectBtn.disabled = !enabled;
                 this.ui.baudRateSelect.disabled = enabled;
@@ -181,7 +211,7 @@
             async sendCommand(cmd, showInTerm = true) {
                 if (this.state.port && cmd) {
                     this.term.focus();
-                    if(showInTerm) this.term.writeln(`\x1b[36m$ ${cmd}\x1b[0m`);
+                    if(showInTerm) this.term.writeln(`\x1b[34m$ ${cmd}\x1b[0m`);
                     await this.sendSerial(cmd + '\r');
                 }
             },
@@ -193,7 +223,7 @@
                     this.setGuiEnabled(true);
                     this.state.isReading = true;
                     this.readLoop();
-                    this.term.writeln('\x1b[32m[SYSTEM] Connected.\x1b[0m');
+                    this.term.writeln('\x1b[32m[SYSTEM] Connected to Serial Port.\x1b[0m');
                     this.term.focus();
                     this.state.onDataDisposable = this.term.onData(data => { if (!this.state.fileDownloadInProgress) { this.sendSerial(data); } });
                 } catch (error) { this.term.writeln(`\r\n\x1b[31m[ERROR] ${error.message}\x1b[0m`); }
@@ -204,7 +234,11 @@
                 this.state.isReading = false;
                 if (this.state.onDataDisposable) { this.state.onDataDisposable.dispose(); this.state.onDataDisposable = null; }
                 if (portToClose.readable) {
-                    try { const reader = portToClose.readable.getReader(); await reader.cancel(); reader.releaseLock(); } catch(e) {}
+                    try {
+                        const reader = portToClose.readable.getReader();
+                        await reader.cancel(); 
+                        reader.releaseLock();
+                    } catch(e) {}
                 }
                 try { await portToClose.close(); } catch(e) {}
                 if (this.state.port === portToClose) {
@@ -266,6 +300,7 @@
             bindEvents() {
                 this.ui.connectBtn.addEventListener('click', () => this.connect());
                 this.ui.disconnectBtn.addEventListener('click', () => this.disconnect());
+                navigator.serial?.addEventListener('disconnect', (e) => { if (e.target === this.state.port) this.disconnect(); });
                 this.ui.clearTermBtn.addEventListener('click', () => this.term.clear());
                 this.ui.rootLoginBtn.addEventListener('click', () => this.sendCommand('root', false));
                 this.ui.cmdBtns.forEach(b => b.addEventListener('click', () => this.sendCommand(b.dataset.cmd)));
@@ -274,20 +309,11 @@
                 this.ui.ifaceDownBtn.addEventListener('click', () => { const iface = this.ui.netIfaceInput.value.trim(); if(iface) this.sendCommand(`ip link set ${iface} down`); });
                 this.ui.setIpBtn.addEventListener('click', () => { const iface = this.ui.netIfaceInput.value.trim(); const ip = this.ui.ipAddressInput.value.trim(); if(iface && ip) this.sendCommand(`ip addr add ${ip} dev ${iface}`); });
                 
-                this.ui.runEthtoolBtn.addEventListener('click', () => { const param = this.ui.ethtoolParamSelect.value; const iface = this.ui.ethtoolIfaceInput.value.trim(); if(iface) this.sendCommand(`ethtool ${param} ${iface}`); });
-                this.ui.runPtp4lBtn.addEventListener('click', () => { const iface = this.ui.ptp4lIfaceInput.value.trim(); const layer = this.ui.ptp4lLayerSelect.value; if(iface) this.sendCommand(`ptp4l ${layer} -H -m -s -i ${iface}`); });
+                this.ui.runEthtoolBtn.addEventListener('click', () => { const param = this.ui.ethtoolParamSelect.value; const iface = this.ui.netIfaceInput.value.trim(); if(iface) this.sendCommand(`ethtool ${param} ${iface}`); });
                 this.ui.runTcpdumpBtn.addEventListener('click', () => { const opts = this.ui.tcpdumpInput.value.trim(); if(opts) this.sendCommand(`tcpdump ${opts}`); });
-
-                this.ui.runTcBtn.addEventListener('click', () => {
-                    const iface = this.ui.tcIfaceInput.value.trim();
-                    const action = this.ui.tcActionSelect.value;
-                    const qdisc = this.ui.tcQdiscSelect.value;
-                    let cmd = '';
-                    if (qdisc === 'mqprio') cmd = `tc qdisc ${action} dev ${iface} root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4`;
-                    else if (qdisc === 'cbs') cmd = `tc qdisc ${action} dev ${iface} parent 1:2 cbs idleslope 67000 sendslope -933000 hicredit 2147483647 locredit -2147483648 offload 1`;
-                    else if (qdisc === 'taprio') cmd = `tc qdisc ${action} dev ${iface} root taprio num_tc 5 map 0 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4 base-time 0 sched-entry S 10 50000 sched-entry S 0f 450000 sched-entry S 1f 96 flags 0x2`;
-                    if(cmd) this.sendCommand(cmd);
-                });
+                this.ui.runPtp4lBtn.addEventListener('click', () => this.sendCommand(`ptp4l -2 -H -m -s -i end0`));
+                this.ui.runMqprioBtn.addEventListener('click', () => this.sendCommand(`tc qdisc add dev end0 root handle 1: mqprio hw 0 num_tc 5 map 1 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4`));
+                this.ui.runTaprioBtn.addEventListener('click', () => this.sendCommand(`tc qdisc add dev end0 root taprio num_tc 5 map 0 1 2 3 4 queues 1@0 1@1 1@2 1@3 1@4 base-time 0 sched-entry S 10 50000 sched-entry S 0f 450000 sched-entry S 1f 96 flags 0x2`));
 
                 this.ui.runIperfClientBtn.addEventListener('click', () => { const opts = this.ui.iperfClientInput.value.trim(); if(opts) this.sendCommand(`iperf3 -c ${opts}`); });
 
@@ -301,26 +327,6 @@
                     this.state.fileDownloadBuffer = '';
                     this.term.writeln(`\r\n\x1b[33m[SYSTEM] Requesting file: ${path}. Please wait...\x1b[0m`);
                     this.sendCommand(`if [ -f "${path}" ]; then cat "${path}" | base64; fi; echo "DOWNLOAD_END"`, false);
-                });
-                
-                this.ui.uploadFileBtn.addEventListener('click', () => {
-                    const file = this.ui.fileInput.files[0];
-                    const remotePath = prompt("Enter the destination path on the device (e.g., /tmp/myfile):", "/tmp/uploaded_file");
-                    if (!file || !remotePath) return;
-
-                    const reader = new FileReader();
-                    this.ui.transferStatus.textContent = `Reading ${file.name}...`;
-                    reader.onload = (e) => {
-                        this.ui.transferStatus.textContent = `Encoding...`;
-                        const base64Content = e.target.result.split(',')[1];
-                        const cmd = `echo '${base64Content}' | base64 -d > ${remotePath}`;
-                        this.ui.transferStatus.textContent = `Uploading to ${remotePath}...`;
-                        this.sendCommand(cmd, false).then(() => {
-                            this.term.writeln(`\r\n\x1b[32m[SYSTEM] Upload command for ${file.name} sent.\x1b[0m`);
-                            this.ui.transferStatus.textContent = 'Upload initiated.';
-                        });
-                    };
-                    reader.readAsDataURL(file);
                 });
                 
                 this.ui.rebootBtn.addEventListener('click', () => { if(confirm('REBOOT the device?')) this.sendCommand('reboot'); });
